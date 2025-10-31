@@ -18,7 +18,9 @@ class SchoolController extends Controller
 
         // ✅ Always convert the logo path to a public URL
         $schools->transform(function ($school) {
-            $school->logo_path = $school->logo_path ? Storage::url($school->logo_path) : asset('images/default-logo.png');
+            $school->logo_path = $school->logo_path
+                ? Storage::url($school->logo_path)        // ✅ generates /storage/schools/file.jpg
+                : asset('images/default-logo.png');       // fallback image
             return $school;
         });
 
@@ -59,16 +61,16 @@ class SchoolController extends Controller
     /**
      * Display the specified school.
      */
-    public function show($slug)
-    {
+    public function show($slug){
         $school = School::where('slug', $slug)->firstOrFail();
 
-        // ✅ Convert logo to full URL
-        $school->logo_path = $school->logo_path ? Storage::url($school->logo_path) : asset('images/default-logo.png');
+        $school->logo_path = $school->logo_path
+        ? Storage::url($school->logo_path)
+        : asset('images/default-logo.png');
 
         return Inertia::render('Schools/Show', [
             'school' => $school,
-            'achievements' => [], // Placeholder for now
+            'achievements' => [],
         ]);
     }
 

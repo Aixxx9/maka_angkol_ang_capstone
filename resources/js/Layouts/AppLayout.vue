@@ -5,6 +5,13 @@ import { ref } from 'vue'
 const page = usePage()
 const schools = page.props.schools ?? []
 
+// ✅ Normalize logo paths (avoid /schools/schools/... issue)
+function normalizeLogo(path) {
+  if (!path) return '/images/default-logo.png'
+  if (path.startsWith('http://') || path.startsWith('https://')) return path
+  if (path.startsWith('/storage/')) return path
+  return `/storage/${path}`
+}
 // Add School modal state + form
 const showAddSchool = ref(false)
 const preview = ref(null)
@@ -36,8 +43,9 @@ function submitSchool() {
     onSuccess: () => {
       showAddSchool.value = false
       clearLogo()
-      schoolForm.reset('name','slug','summary','logo')
-    }
+      schoolForm.reset('name', 'slug', 'summary', 'logo')
+      router.reload({ only: ['schools'] })
+    },
   })
 }
 </script>
@@ -65,15 +73,22 @@ function submitSchool() {
 
           <div class="h-10 w-px bg-[#bcd3f5]" />
 
-          <!-- Existing school logos -->
+          <!-- ✅ Fixed: School logos always show correctly -->
           <template v-for="s in schools" :key="s.id">
-            <Link :href="`/schools/${s.slug}`" class="shrink-0 flex flex-col items-center group" :title="s.name">
+            <Link
+              :href="`/schools/${s.slug}`"
+              class="shrink-0 flex flex-col items-center group"
+              :title="s.name"
+            >
               <img
-                :src="s.logo_path?.startsWith('/storage') ? s.logo_path : `/storage/${s.logo_path}`"
+                :src="normalizeLogo(s.logo_path)"
                 class="h-12 w-12 object-cover rounded-full ring-1 ring-[#a8c7f3] group-hover:ring-[#0b66ff] hover:scale-110 transition"
                 :alt="s.name"
+                @error="(e) => (e.target.src = '/images/default-logo.png')"
               />
-              <span class="text-[11px] text-[#1f2937] mt-1 font-medium group-hover:text-[#0b66ff] truncate max-w-[80px]">
+              <span
+                class="text-[11px] text-[#1f2937] mt-1 font-medium group-hover:text-[#0b66ff] truncate max-w-[80px]"
+              >
                 {{ s.name }}
               </span>
             </Link>
@@ -125,7 +140,7 @@ function submitSchool() {
       </div>
     </header>
 
-    <!-- Slide-in Sidebar -->
+    <!-- Sidebar -->
     <transition name="slide">
       <div
         v-if="showSidebar"
@@ -133,9 +148,7 @@ function submitSchool() {
       >
         <div class="flex items-center justify-between px-4 py-3 border-b">
           <h2 class="text-lg font-semibold text-[#1f2937]">Menu</h2>
-          <button @click="showSidebar = false" class="text-gray-500 hover:text-gray-700">
-            ✕
-          </button>
+          <button @click="showSidebar = false" class="text-gray-500 hover:text-gray-700">✕</button>
         </div>
         <nav class="flex flex-col p-4 space-y-3 text-[#354b7d] font-semibold">
           <Link href="/sports/create" class="hover:text-[#0b66ff]" @click="showSidebar = false">Add Sports</Link>
@@ -163,7 +176,7 @@ function submitSchool() {
       </Link>
     </div>
 
-    <!-- PAGE CONTENT -->
+    <!-- MAIN CONTENT -->
     <main class="flex-1">
       <slot />
     </main>
