@@ -1,5 +1,5 @@
 <script setup>
-import { Link, usePage, useForm } from '@inertiajs/vue3'
+import { Link, usePage, useForm, router } from '@inertiajs/vue3'
 import { ref } from 'vue'
 
 const page = usePage()
@@ -37,65 +37,71 @@ function clearLogo() {
   if (preview.value) URL.revokeObjectURL(preview.value)
   preview.value = null
 }
+
 function submitSchool() {
   schoolForm.post('/schools', {
     forceFormData: true,
     onSuccess: () => {
       showAddSchool.value = false
-      clearLogo()
       schoolForm.reset('name', 'slug', 'summary', 'logo')
-      router.reload({ only: ['schools'] })
+      window.location.reload()
     },
   })
 }
+
+
 </script>
 
 <template>
   <div class="min-h-screen bg-[#f7f8fc] text-[#111827] flex flex-col font-inter">
     
     <!-- ================= SCHOOLS STRIP ================= -->
-    <div class="relative bg-[#cfe1fb] border-b border-[#bcd3f5]">
-      <div class="w-full px-4">
-        <div class="flex items-center gap-3 py-3 overflow-x-auto scrollbar-none">
-          <div class="shrink-0 text-[14px] font-semibold text-[#1f2937] pr-2">Schools</div>
-
-          <!-- Add School (+) button -->
-          <button
-            type="button"
-            class="shrink-0 h-10 w-10 grid place-items-center rounded-full bg-white text-[#0b66ff] ring-1 ring-[#a8c7f3] hover:bg-[#0b66ff] hover:text-white transition"
-            title="Add School"
-            @click="showAddSchool = true"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/>
-            </svg>
-          </button>
-
-          <div class="h-10 w-px bg-[#bcd3f5]" />
-
-          <!-- ✅ Fixed: School logos always show correctly -->
-          <template v-for="s in schools" :key="s.id">
-            <Link
-              :href="`/schools/${s.slug}`"
-              class="shrink-0 flex flex-col items-center group"
-              :title="s.name"
-            >
-              <img
-                :src="normalizeLogo(s.logo_path)"
-                class="h-12 w-12 object-cover rounded-full ring-1 ring-[#a8c7f3] group-hover:ring-[#0b66ff] hover:scale-110 transition"
-                :alt="s.name"
-                @error="(e) => (e.target.src = '/images/default-logo.png')"
-              />
-              <span
-                class="text-[11px] text-[#1f2937] mt-1 font-medium group-hover:text-[#0b66ff] truncate max-w-[80px]"
-              >
-                {{ s.name }}
-              </span>
-            </Link>
-          </template>
-        </div>
-      </div>
+    <div class="bg-[#cfe1fb] border-b border-[#bcd3f5] px-4 py-4">
+  <div class="flex items-center w-full gap-4">
+    <!-- Left Label -->
+    <div class="flex items-center shrink-0">
+      <span class="text-[15px] font-semibold text-[#1f2937]">Schools</span>
     </div>
+
+    <!-- Add School Button -->
+    <button
+      type="button"
+      class="h-12 w-12 flex items-center justify-center rounded-full bg-white text-[#0b66ff] ring-2 ring-[#a8c7f3] hover:bg-[#0b66ff] hover:text-white transition shrink-0"
+      title="Add School"
+      @click="showAddSchool = true"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/>
+      </svg>
+    </button>
+
+    <!-- Divider line -->
+    <div class="h-10 w-px bg-[#bcd3f5]" />
+
+    <!-- School logos: fill the rest of the row evenly -->
+    <div class="flex-1 flex justify-evenly items-center flex-wrap gap-y-3">
+      <template v-for="s in schools" :key="s.id">
+        <Link
+          :href="`/schools/${s.slug}`"
+          class="flex flex-col items-center group shrink-0"
+          :title="s.name"
+        >
+          <div
+            class="logo-btn overflow-hidden rounded-full ring-2 ring-[#a8c7f3] group-hover:ring-[#0b66ff] hover:scale-110 transition"
+          >
+            <img
+              :src="normalizeLogo(s.logo_path)"
+              class="h-full w-full object-cover"
+              :alt="s.name"
+              @error="(e) => (e.target.src = '/images/default-logo.png')"
+            />
+          </div>
+        </Link>
+      </template>
+    </div>
+  </div>
+</div>
+
 
     <!-- ================= NAV ROW ================= -->
     <header class="relative bg-[#eaf1ff] border-b border-[#d7e5ff]">
@@ -274,4 +280,9 @@ function submitSchool() {
 
 .slide-enter-active, .slide-leave-active { transition: all 0.3s ease; }
 .slide-enter-from, .slide-leave-to { transform: translateX(-100%); opacity: 0; }
+.logo-btn {
+  height: 64px;   /* 👈 Change this to adjust logo size */
+  width: 64px;    /* 👈 Keep width same as height for circle */
+}
+
 </style>

@@ -4,7 +4,7 @@ import { Link, usePage, useForm, router } from '@inertiajs/vue3'
 import { ref } from 'vue'
 
 const { props } = usePage()
-const school = ref(props.school)            // make it reactive
+const school = ref(props.school)
 const achievements = props.achievements || []
 
 // modal
@@ -13,17 +13,18 @@ const showEditModal = ref(false)
 // preview
 const preview = ref(school.value.logo_path)
 
-// inertia form
+// inertia form (this is what we will send)
 const form = useForm({
-  name: school.value.name,
-  summary: school.value.summary,
+  name: school.value.name ?? '',
+  summary: school.value.summary ?? '',
   logo: null,
 })
 
-// pick file
+// file picker
 function onPickLogo(e) {
   const file = e.target.files?.[0]
   form.logo = file || null
+
   if (preview.value) URL.revokeObjectURL(preview.value)
   preview.value = file ? URL.createObjectURL(file) : school.value.logo_path
 }
@@ -33,29 +34,38 @@ function clearLogo() {
   preview.value = school.value.logo_path
 }
 
-// save
+// ✅ THIS was the problem:
+// 👉 Laravel + file + PUT = often empty
+// 👉 so we send POST + _method: 'put'
 function saveChanges() {
-  form.put(`/schools/${school.value.slug}`, {
-    forceFormData: true,
+  form.post(`/schools/${school.value.slug}`, {
+    method: 'put',          // ← spoof PUT
+    forceFormData: true,    // ← important for file
     preserveScroll: true,
-    onSuccess: () => {
-      const updated = usePage().props.flash?.updatedSchool
+    preserveState: true,
+    onSuccess: (page) => {
+      // try to read what controller sent back
+      const updated = page.props?.flash?.updatedSchool
       if (updated) {
         school.value = updated
         preview.value = updated.logo_path
       } else {
+        // fallback: just update from form
         school.value.name = form.name
         school.value.summary = form.summary
       }
+
       showEditModal.value = false
       alert('✅ School updated successfully!')
     },
-    onError: (err) => {
-      console.error('❌ Update failed:', err)
-    }
+    onError: (errors) => {
+      console.error('❌ Update failed:', errors)
+      // show first error
+      const first = Object.values(errors)[0]
+      if (first) alert(first)
+    },
   })
 }
-
 
 // delete
 function deleteSchool() {
@@ -92,7 +102,6 @@ function deleteSchool() {
             </p>
 
             <div class="mt-6 flex gap-3">
-              <!-- ✅ THIS must be clickable now -->
               <button
                 type="button"
                 @click="showEditModal = true"
@@ -167,7 +176,7 @@ function deleteSchool() {
           <form @submit.prevent="saveChanges" class="p-5 space-y-4">
             <div>
               <label class="block text-sm font-medium mb-1">School Name</label>
-              <input v-model="form.name" type="text" class="w-full border rounded px-3 py-2" />
+              <input v-model.trim="form.name" type="text" class="w-full border rounded px-3 py-2" required />
             </div>
 
             <div>

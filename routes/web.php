@@ -26,7 +26,7 @@ Route::get('/schools/{slug}', [SchoolController::class, 'show'])->name('schools.
 Route::get('/schools/{slug}/edit', [SchoolController::class, 'edit'])->name('schools.edit');
 Route::delete('/schools/{slug}', [SchoolController::class, 'destroy'])->name('schools.destroy');
 Route::put('/schools/{slug}', [SchoolController::class, 'update'])->name('schools.update');
-
+Route::post('/schools/{slug}', [SchoolController::class, 'update'])->name('schools.update.post');
 
 /*
 |--------------------------------------------------------------------------
