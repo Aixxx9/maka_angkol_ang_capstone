@@ -103,5 +103,7 @@ Route::get('/athletes/create', [AthleteController::class, 'create'])->name('athl
 Route::post('/athletes', [AthleteController::class, 'store'])->name('athletes.store');
 Route::post('/athletes/{athlete}/game-stats', [AthleteController::class, 'storeGameStat'])
     ->name('athletes.stats.store');
+Route::delete('/athletes/{athlete}/game-stats/{stat}', [AthleteController::class, 'destroyGameStat'])
+    ->name('athletes.stats.destroy');
 
 require __DIR__.'/auth.php';

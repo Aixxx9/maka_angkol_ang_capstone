@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Athlete;
 use App\Models\Sport;
+use App\Models\PlayerGameStat;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
@@ -13,13 +14,31 @@ class AthleteController extends Controller
     public function index(Request $request)
     {
         $sportSlug = $request->query('sport');
-        $query = Athlete::query()->with('sport', 'team');
+
+        $query = Athlete::query()
+            ->with(['sport', 'team', 'school', 'gameStats'])
+            ->withAvg('gameStats as ppg', 'points')
+            ->withAvg('gameStats as rpg', 'rebounds')
+            ->withAvg('gameStats as apg', 'assists')
+            ->withAvg('gameStats as fg', 'fg_percent');
 
         if ($sportSlug) {
             $query->whereHas('sport', fn($q) => $q->where('slug', $sportSlug));
         }
 
-        $players = $query->get();
+        $players = $query->get()->map(function ($p) {
+            // Normalize fields the front-end expects
+            $p->team_name = optional($p->team)->name;
+            $p->school_name = optional($p->school)->name;
+            // Cast avgs to numbers with 1 decimal precision for consistency on the client
+            foreach (['ppg', 'rpg', 'apg', 'fg'] as $k) {
+                if (!is_null($p->{$k})) {
+                    $p->{$k} = round((float) $p->{$k}, 1);
+                }
+            }
+            return $p;
+        });
+
         $sports = Sport::select('id', 'name', 'slug', 'icon_path')->get()->map(function ($s) {
             $s->icon_path = $s->icon_path ? Storage::url($s->icon_path) : '/images/default-sport.png';
             return $s;
@@ -115,6 +134,13 @@ public function storeGameStat(Request $request, Athlete $athlete)
     ]);
     $athlete->gameStats()->create($data);
     return back()->with('success', 'Game record added!');
+}
+
+public function destroyGameStat(Athlete $athlete, $stat)
+{
+    $record = PlayerGameStat::where('athlete_id', $athlete->id)->where('id', $stat)->firstOrFail();
+    $record->delete();
+    return back()->with('success', 'Recent game record cleared.');
 }
 
 }

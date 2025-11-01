@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { Link, router, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import Chart from 'chart.js/auto' // ✅ simpler import, no vue-chartjs
+import Chart from 'chart.js/auto'
 
 const props = defineProps({
   sports: { type: Array, default: () => [] },
@@ -35,6 +35,20 @@ const fullName = (p) => [p?.first_name, p?.last_name].filter(Boolean).join(' ')
 const n1 = (n) => (typeof n === 'number' ? n.toFixed(1) : '—')
 const pct = (n) => (typeof n === 'number' ? `${n.toFixed(1)}%` : '—')
 
+// School filter helpers
+const schoolFilter = ref('')
+const availableSchools = computed(() => {
+  const seen = new Map()
+  for (const p of props.players || []) {
+    const id = p.school_id ?? p.school?.id
+    const name = p.school_name ?? p.school?.name
+    if (id && name && !seen.has(id)) {
+      seen.set(id, { id: String(id), name })
+    }
+  }
+  return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name))
+})
+
 // ==========================
 // SCROLL + ROUTE
 // ==========================
@@ -46,6 +60,7 @@ function scrollToPlayers() {
 }
 watch(() => props.sport, (val) => { if (val) nextTick(scrollToPlayers) })
 onMounted(() => { if (props.sport) nextTick(scrollToPlayers) })
+watch(() => props.sport, () => { schoolFilter.value = '' })
 
 function chooseSport(slug) {
   router.get('/athletes', { sport: slug }, {
@@ -59,12 +74,19 @@ function chooseSport(slug) {
 // ==========================
 const filteredPlayers = computed(() => {
   const term = playerQuery.value.trim().toLowerCase()
-  if (!term) return props.players
-  return props.players.filter(p => {
+  let list = props.players || []
+
+  if (schoolFilter.value) {
+    list = list.filter(p => String(p.school_id ?? p.school?.id) === String(schoolFilter.value))
+  }
+
+  if (!term) return list
+  return list.filter(p => {
     const name = fullName(p).toLowerCase()
     const team = (p.team_name ?? '').toLowerCase()
     const num = String(p.number ?? '')
-    return name.includes(term) || team.includes(term) || num.includes(term)
+    const school = (p.school_name ?? p.school?.name ?? '').toLowerCase()
+    return name.includes(term) || team.includes(term) || num.includes(term) || school.includes(term)
   })
 })
 
@@ -151,6 +173,40 @@ const recordForm = useForm({
 const chartCanvas = ref(null)
 let chartInstance = null
 
+// Chart grouping selector and helpers
+const timeRange = ref('all') // all | weekly | monthly | yearly
+function pad2(n) { return String(n).padStart(2, '0') }
+function startOfISOWeek(date) {
+  const d = new Date(date)
+  const day = d.getDay() || 7
+  if (day !== 1) d.setDate(d.getDate() - (day - 1))
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+function getPeriodMeta(date, mode) {
+  const d = new Date(date)
+  if (mode === 'weekly') {
+    const start = startOfISOWeek(d)
+    // ISO week number approximation
+    const tmp = new Date(start)
+    tmp.setDate(tmp.getDate() + 3) // Thursday
+    const yearStart = new Date(tmp.getFullYear(), 0, 4)
+    const week = 1 + Math.round(((tmp - yearStart) / 86400000 - 3 + ((yearStart.getDay() + 6) % 7)) / 7)
+    return { key: `${start.getFullYear()}-W${pad2(week)}`, label: `${start.getFullYear()}-W${pad2(week)}`, sortDate: start }
+  }
+  if (mode === 'monthly') {
+    const first = new Date(d.getFullYear(), d.getMonth(), 1)
+    return { key: `${first.getFullYear()}-${pad2(first.getMonth()+1)}`, label: `${first.getFullYear()}-${pad2(first.getMonth()+1)}`, sortDate: first }
+  }
+  if (mode === 'yearly') {
+    const first = new Date(d.getFullYear(), 0, 1)
+    return { key: String(first.getFullYear()), label: String(first.getFullYear()), sortDate: first }
+  }
+  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const label = `${day.getFullYear()}-${pad2(day.getMonth()+1)}-${pad2(day.getDate())}`
+  return { key: label, label, sortDate: day }
+}
+
 function openRecordModal(player) {
   selectedPlayer.value = player
   showRecordModal.value = true
@@ -160,20 +216,49 @@ function openRecordModal(player) {
 function renderChart() {
   if (!chartCanvas.value || !selectedPlayer.value?.game_stats) return
 
-  const stats = selectedPlayer.value.game_stats
-  const labels = stats.map(g => g.game_date)
-  const dataSets = [
-    { label: 'Points', data: stats.map(g => g.points), borderColor: '#0b66ff', tension: 0.3 },
-    { label: 'Rebounds', data: stats.map(g => g.rebounds), borderColor: '#10b981', tension: 0.3 },
-    { label: 'Assists', data: stats.map(g => g.assists), borderColor: '#f59e0b', tension: 0.3 }
-  ]
+  const stats = [...selectedPlayer.value.game_stats]
+    .filter(s => !!s.game_date)
+    .sort((a, b) => new Date(a.game_date) - new Date(b.game_date))
+
+  const grouped = new Map()
+  for (const s of stats) {
+    const { key, label, sortDate } = getPeriodMeta(s.game_date, timeRange.value)
+    if (!grouped.has(key)) grouped.set(key, { label, sortDate, points: 0, rebounds: 0, assists: 0, fgSum: 0, count: 0 })
+    const g = grouped.get(key)
+    g.points += Number(s.points || 0)
+    g.rebounds += Number(s.rebounds || 0)
+    g.assists += Number(s.assists || 0)
+    if (s.fg_percent != null) g.fgSum += Number(s.fg_percent)
+    g.count += 1
+  }
+
+  const rows = [...grouped.values()].sort((a, b) => a.sortDate - b.sortDate)
+  const labels = rows.map(r => r.label)
+  const points = rows.map(r => r.points)
+  const rebounds = rows.map(r => r.rebounds)
+  const assists = rows.map(r => r.assists)
 
   if (chartInstance) chartInstance.destroy()
 
   chartInstance = new Chart(chartCanvas.value, {
     type: 'line',
-    data: { labels, datasets: dataSets },
-    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    data: {
+      labels,
+      datasets: [
+        { label: 'Points', data: points, borderColor: '#0b66ff', backgroundColor: '#0b66ff22', tension: 0.3 },
+        { label: 'Rebounds', data: rebounds, borderColor: '#10b981', backgroundColor: '#10b98122', tension: 0.3 },
+        { label: 'Assists', data: assists, borderColor: '#f59e0b', backgroundColor: '#f59e0b22', tension: 0.3 },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } },
+      interaction: { mode: 'nearest', intersect: false },
+      scales: {
+        x: { title: { display: true, text: timeRange.value === 'all' ? 'Game Date' : 'Period' }, ticks: { autoSkip: true, maxRotation: 0 } },
+        y: { beginAtZero: true, title: { display: true, text: 'Stat Value' } },
+      },
+    },
   })
 }
 
@@ -185,6 +270,46 @@ function saveGameRecord() {
     },
   })
 }
+
+function clearRecordForm() {
+  recordForm.reset()
+}
+
+const recentRecords = computed(() => {
+  const stats = selectedPlayer.value?.game_stats || []
+  return [...stats]
+    .sort((a, b) => new Date(b.game_date) - new Date(a.game_date))
+    .slice(0, 8)
+})
+
+function clearMostRecentRecord() {
+  const r = recentRecords.value[0]
+  if (!r) return
+  router.delete(`/athletes/${selectedPlayer.value.id}/game-stats/${r.id}`, {
+    onSuccess: () => {
+      router.reload({ only: ['players'] })
+    },
+    onError: () => {
+      alert('Failed to clear the recent record.')
+    }
+  })
+}
+
+watch(() => props.players, async (list) => {
+  if (!showRecordModal.value || !selectedPlayer.value) return
+  const updated = list.find(p => p.id === selectedPlayer.value.id)
+  if (updated) {
+    selectedPlayer.value = updated
+    await nextTick()
+    renderChart()
+  }
+})
+
+// Update chart when grouping changes
+watch(timeRange, async () => {
+  await nextTick()
+  renderChart()
+})
 </script>
 
 <template>
@@ -218,10 +343,19 @@ function saveGameRecord() {
             </div>
           </div>
 
-          <div v-if="sport" class="md:col-span-6">
-            <label class="text-xs font-medium text-neutral-600">Search players</label>
-            <input v-model="playerQuery" type="text" placeholder="Search by name or team"
-              class="mt-1 w-full rounded-lg border border-neutral-300 bg-white/90 px-3 py-2 shadow-sm focus:border-[#0b66ff]">
+          <div v-if="sport" class="md:col-span-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-medium text-neutral-600">Search players</label>
+              <input v-model="playerQuery" type="text" placeholder="Search by name, team, or number"
+                class="mt-1 w-full rounded-lg border border-neutral-300 bg-white/90 px-3 py-2 shadow-sm focus:border-[#0b66ff]">
+            </div>
+            <div>
+              <label class="text-xs font-medium text-neutral-600">Filter by school</label>
+              <select v-model="schoolFilter" class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 shadow-sm focus:border-[#0b66ff]">
+                <option value="">All schools</option>
+                <option v-for="s in availableSchools" :key="s.id" :value="s.id">{{ s.name }}</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -295,42 +429,131 @@ function saveGameRecord() {
             </div>
 
             <div class="flex justify-center gap-4 pb-4">
-              <button @click.stop="openEditModal(p)" class="text-xs text-blue-600 hover:underline">Edit</button>
-              <button @click.stop="openDeleteModal(p)" class="text-xs text-red-600 hover:underline">Delete</button>
+              <button @click.stop="openEditModal(p)" class="text-xs text-blue-600 hover:underline opacity-80 hover:opacity-100">Edit</button>
+              <button @click.stop="openDeleteModal(p)" class="text-xs text-red-600 hover:underline opacity-80 hover:opacity-100">Delete</button>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- RECORD MODAL -->
-    <div v-if="showRecordModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div class="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl overflow-y-auto max-h-[90vh]">
-        <h2 class="text-lg font-semibold mb-3">{{ fullName(selectedPlayer) }} – Full Record</h2>
-
-        <div class="grid grid-cols-4 gap-4 text-center mb-4">
-          <div class="bg-neutral-50 p-3 rounded"><div class="text-xs text-neutral-500">PPG</div><div class="text-xl font-bold">{{ selectedPlayer.ppg ?? '—' }}</div></div>
-          <div class="bg-neutral-50 p-3 rounded"><div class="text-xs text-neutral-500">RPG</div><div class="text-xl font-bold">{{ selectedPlayer.rpg ?? '—' }}</div></div>
-          <div class="bg-neutral-50 p-3 rounded"><div class="text-xs text-neutral-500">APG</div><div class="text-xl font-bold">{{ selectedPlayer.apg ?? '—' }}</div></div>
-          <div class="bg-neutral-50 p-3 rounded"><div class="text-xs text-neutral-500">FG%</div><div class="text-xl font-bold">{{ selectedPlayer.fg ?? '—' }}</div></div>
+    <!-- ✅ UPDATED RECORD MODAL -->
+    <div v-if="showRecordModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-fade-in">
+        <div class="bg-[#0b66ff] text-white p-5">
+          <h2 class="text-xl font-bold">{{ fullName(selectedPlayer) }} — {{ selectedPlayer.team_name || 'Team' }}</h2>
+          <p class="text-sm opacity-90">School: {{ selectedPlayer.school_name || selectedPlayer.school?.name || '—' }}</p>
         </div>
 
-        <form @submit.prevent="saveGameRecord" class="grid grid-cols-5 gap-2 mb-6">
-          <input v-model="recordForm.points" type="number" placeholder="Points" class="border rounded px-2 py-1 text-sm" />
-          <input v-model="recordForm.rebounds" type="number" placeholder="Rebounds" class="border rounded px-2 py-1 text-sm" />
-          <input v-model="recordForm.assists" type="number" placeholder="Assists" class="border rounded px-2 py-1 text-sm" />
-          <input v-model="recordForm.fg_percent" type="number" placeholder="FG%" class="border rounded px-2 py-1 text-sm" />
-          <input v-model="recordForm.game_date" type="date" class="border rounded px-2 py-1 text-sm" />
-          <button type="submit" class="col-span-5 bg-[#0b66ff] text-white rounded py-1 mt-2 text-sm">Add Record</button>
-        </form>
+        <div class="p-5 space-y-5 overflow-y-auto max-h-[75vh]">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div class="rounded-xl bg-neutral-50 border p-3 text-center shadow-sm">
+              <div class="text-xs text-neutral-500">PPG</div>
+              <div class="text-2xl font-extrabold text-neutral-900">{{ selectedPlayer.ppg ?? '—' }}</div>
+            </div>
+            <div class="rounded-xl bg-neutral-50 border p-3 text-center shadow-sm">
+              <div class="text-xs text-neutral-500">RPG</div>
+              <div class="text-2xl font-extrabold text-neutral-900">{{ selectedPlayer.rpg ?? '—' }}</div>
+            </div>
+            <div class="rounded-xl bg-neutral-50 border p-3 text-center shadow-sm">
+              <div class="text-xs text-neutral-500">APG</div>
+              <div class="text-2xl font-extrabold text-neutral-900">{{ selectedPlayer.apg ?? '—' }}</div>
+            </div>
+            <div class="rounded-xl bg-neutral-50 border p-3 text-center shadow-sm">
+              <div class="text-xs text-neutral-500">FG%</div>
+              <div class="text-2xl font-extrabold text-neutral-900">{{ selectedPlayer.fg ?? '—' }}</div>
+            </div>
+          </div>
 
-        <!-- ✅ Chart.js Canvas -->
-        <canvas ref="chartCanvas" class="h-60 w-full"></canvas>
+          <div class="bg-neutral-50 rounded-xl border p-5 shadow-inner">
+            <h3 class="font-semibold text-neutral-800 mb-3">Add / Update Game Record</h3>
+            <form @submit.prevent="saveGameRecord" class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <input v-model="recordForm.points" type="number" placeholder="Points" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#0b66ff]" />
+              <input v-model="recordForm.rebounds" type="number" placeholder="Rebounds" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#0b66ff]" />
+              <input v-model="recordForm.assists" type="number" placeholder="Assists" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#0b66ff]" />
+              <input v-model="recordForm.fg_percent" type="number" step="0.1" placeholder="FG%" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#0b66ff]" />
+              <input v-model="recordForm.game_date" type="date" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#0b66ff]" />
+              <div class="col-span-2 sm:col-span-5 flex justify-end gap-3 mt-2">
+                <button type="submit" class="bg-[#0b66ff] hover:bg-[#084dcc] text-white rounded-lg px-4 py-2 text-sm font-semibold shadow">
+                  Save Record
+                </button>
+                <button type="button" @click="clearRecordForm" class="border border-neutral-300 hover:bg-neutral-100 rounded-lg px-4 py-2 text-sm">
+                  Clear
+                </button>
+              </div>
+            </form>
+          </div>
 
-        <div class="flex justify-end mt-4">
-          <button @click="showRecordModal=false" class="px-3 py-1 border rounded">Close</button>
+          <div class="bg-white border rounded-xl shadow p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="font-semibold text-neutral-800">Performance Trend</h3>
+              <div class="flex items-center gap-2">
+                <label class="text-xs text-neutral-500">Group by</label>
+                <select v-model="timeRange" class="border rounded px-2 py-1 text-xs bg-white">
+                  <option value="all">All</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+              </div>
+            </div>
+            <canvas ref="chartCanvas" class="h-56 w-full"></canvas>
+          </div>
+
+          <div class="bg-neutral-50 border rounded-xl shadow-sm p-5">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="font-semibold text-neutral-800">Recent Game Records</h3>
+              <button
+                type="button"
+                class="text-xs px-3 py-1 rounded border border-neutral-300 bg-white hover:bg-neutral-100 disabled:opacity-50"
+                :disabled="recentRecords.length === 0"
+                @click="clearMostRecentRecord"
+              >
+                Clear Recent
+              </button>
+            </div>
+            <div v-if="recentRecords.length === 0" class="text-sm text-neutral-500 text-center py-4">
+              No game records yet.
+            </div>
+            <ul v-else class="divide-y divide-neutral-200 rounded-md overflow-hidden border">
+              <li v-for="r in recentRecords" :key="r.id" class="px-4 py-3 text-sm flex justify-between items-center hover:bg-neutral-100 transition">
+                <div>
+                  <div class="font-medium text-neutral-800">{{ r.game_date }}</div>
+                  <div class="text-xs text-neutral-600">
+                    Pts: {{ r.points }} | Reb: {{ r.rebounds }} | Ast: {{ r.assists }} | FG%: {{ r.fg_percent }}
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-neutral-500">#{{ selectedPlayer.number || '—' }}</span>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="bg-neutral-100 p-4 flex justify-end">
+          <button @click="showRecordModal = false"
+            class="px-4 py-2 text-sm font-semibold bg-white border border-neutral-300 rounded-lg hover:bg-neutral-200 transition">
+            Close
+          </button>
         </div>
       </div>
     </div>
   </AppLayout>
 </template>
+
+<style scoped>
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.25s ease-in-out;
+}
+</style>
