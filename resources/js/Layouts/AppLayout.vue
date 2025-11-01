@@ -127,16 +127,17 @@ function submitSchool() {
 
         <!-- Center logo -->
         <Link
-          href="/"
-          aria-label="PRISAA Home"
-          class="absolute left-1/2 -translate-x-1/2 -translate-y-2 z-30 block cursor-pointer"
-        >
-          <img
-            src="/images/logo.png"
-            class="h-20 w-20 rounded-full bg-white shadow-md ring-2 ring-white"
-            alt="PRISAA"
-          />
-        </Link>
+  href="/"
+  aria-label="PRISAA Home"
+  class="absolute left-1/2 -translate-x-1/2 -translate-y-1 z-30 block cursor-pointer"
+>
+  <img
+    src="/images/logo.png"
+    class="h-20 w-20 rounded-full bg-white shadow-md ring-2 ring-white"
+    alt="PRISAA"
+  />
+</Link>
+
 
         <nav class="flex-1 flex justify-evenly text-[15px] font-semibold text-[#354b7d]">
           <Link href="/matches" class="hover:text-[#0b66ff]">Matches</Link>

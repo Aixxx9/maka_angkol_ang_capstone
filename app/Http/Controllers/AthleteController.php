@@ -75,4 +75,46 @@ class AthleteController extends Controller
 
         return redirect()->route('athletes.index')->with('success', 'Player added successfully!');
     }
+
+    public function update(Request $request, Athlete $athlete)
+{
+    $validated = $request->validate([
+        'first_name' => 'required|string|max:255',
+        'last_name'  => 'required|string|max:255',
+        'number'     => 'nullable|string|max:10',
+        'position'   => 'nullable|string|max:50',
+        'team_id'    => 'nullable|integer',
+        'avatar'     => 'nullable|image|max:10240', // 10MB
+    ]);
+
+    if ($request->hasFile('avatar')) {
+        $path = $request->file('avatar')->store('avatars', 'public');
+        $validated['avatar_path'] = $path;
+    }
+
+    $athlete->update($validated);
+    return back()->with('success', 'Player updated successfully!');
+}
+
+public function show(Athlete $athlete)
+{
+    $athlete->load('gameStats'); // relationship
+    return inertia('Athletes/Show', [
+        'athlete' => $athlete,
+    ]);
+}
+
+public function storeGameStat(Request $request, Athlete $athlete)
+{
+    $data = $request->validate([
+        'points' => 'required|integer|min:0',
+        'rebounds' => 'required|integer|min:0',
+        'assists' => 'required|integer|min:0',
+        'fg_percent' => 'required|numeric|min:0|max:100',
+        'game_date' => 'required|date',
+    ]);
+    $athlete->gameStats()->create($data);
+    return back()->with('success', 'Game record added!');
+}
+
 }

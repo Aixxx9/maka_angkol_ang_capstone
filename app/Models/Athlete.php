@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
+use App\Models\PlayerGameStat;
+
 
 class Athlete extends Model
 {
@@ -57,4 +59,9 @@ class Athlete extends Model
         // Default image if no avatar
         return asset('images/user.png');
     }
+
+    public function gameStats() {
+    return $this->hasMany(PlayerGameStat::class);
+}
+
 }

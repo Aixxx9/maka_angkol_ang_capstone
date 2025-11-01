@@ -92,7 +92,7 @@ public function update(Request $request, Sport $sport)
         'slug'        => 'nullable|string|max:255|unique:sports,slug,' . $sport->id,
         'type'        => 'required|in:team,individual',
         'description' => 'nullable|string',
-        'icon'        => 'nullable|image|max:2048',
+        'icon'        => 'nullable|image|max:20480',
     ]);
 
     $slug = $validated['slug'] ?? \Str::slug($validated['name'], '-');

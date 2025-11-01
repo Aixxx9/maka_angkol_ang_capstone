@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use App\Models\School;
+use App\Models\{School, Team, Sport};
 use Illuminate\Support\Facades\Storage;
 
 class SchoolController extends Controller
@@ -16,10 +16,10 @@ class SchoolController extends Controller
     {
         $schools = School::select('id', 'name', 'slug', 'summary', 'logo_path')->get();
 
-        // ✅ Always convert the logo path to a public URL
+        // ✅ Convert logo path to a public URL
         $schools->transform(function ($school) {
             $school->logo_path = $school->logo_path
-                ? Storage::url($school->logo_path)        // ✅ generates /storage/schools/file.jpg
+                ? Storage::url($school->logo_path)        // e.g. /storage/schools/file.jpg
                 : asset('images/default-logo.png');       // fallback image
             return $school;
         });
@@ -48,25 +48,38 @@ class SchoolController extends Controller
             $logoPath = $request->file('logo')->store('schools', 'public');
         }
 
-        School::create([
+        // ✅ Create the School
+        $school = School::create([
             'name'      => $validated['name'],
             'slug'      => $validated['slug'],
             'summary'   => $validated['summary'] ?? null,
             'logo_path' => $logoPath,
         ]);
 
-        return redirect()->back()->with('success', '✅ School added successfully!');
+        // ✅ Automatically create a team for each sport
+        $sports = Sport::all();
+        foreach ($sports as $sport) {
+            Team::create([
+                'school_id' => $school->id,
+                'sport_id'  => $sport->id,
+                'name'      => "{$school->name} {$sport->name} Team",
+                'season'    => now()->year,
+            ]);
+        }
+
+        return redirect()->back()->with('success', '✅ School added successfully, and teams were created for each sport!');
     }
 
     /**
      * Display the specified school.
      */
-    public function show($slug){
+    public function show($slug)
+    {
         $school = School::where('slug', $slug)->firstOrFail();
 
         $school->logo_path = $school->logo_path
-        ? Storage::url($school->logo_path)
-        : asset('images/default-logo.png');
+            ? Storage::url($school->logo_path)
+            : asset('images/default-logo.png');
 
         return Inertia::render('Schools/Show', [
             'school' => $school,
@@ -80,7 +93,9 @@ class SchoolController extends Controller
     public function edit($slug)
     {
         $school = School::where('slug', $slug)->firstOrFail();
-        $school->logo_path = $school->logo_path ? Storage::url($school->logo_path) : asset('images/default-logo.png');
+        $school->logo_path = $school->logo_path
+            ? Storage::url($school->logo_path)
+            : asset('images/default-logo.png');
 
         return Inertia::render('Schools/Edit', [
             'school' => $school,
@@ -100,20 +115,19 @@ class SchoolController extends Controller
             'logo'    => 'nullable|image|max:20480',
         ]);
 
-        // handle logo
+        // ✅ handle logo update
         if ($request->hasFile('logo')) {
             if ($school->logo_path) {
-                \Storage::disk('public')->delete($school->logo_path);
+                Storage::disk('public')->delete($school->logo_path);
             }
             $validated['logo_path'] = $request->file('logo')->store('schools', 'public');
         }
 
         $school->update($validated);
 
-        // re-hydrate with full URL for Inertia
         $school->refresh();
         if ($school->logo_path) {
-            $school->logo_path = \Storage::url($school->logo_path);
+            $school->logo_path = Storage::url($school->logo_path);
         }
 
         return back()->with([
@@ -121,8 +135,6 @@ class SchoolController extends Controller
             'updatedSchool' => $school,
         ]);
     }
-
-
 
     /**
      * Remove the specified school from storage.

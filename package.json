@@ -22,7 +22,9 @@
         "@headlessui/vue": "^1.7.23",
         "@inertiajs/vue3": "^2.0.3",
         "@vitejs/plugin-vue": "^5.2.1",
+        "chart.js": "^4.5.1",
         "laravel-echo": "^2.2.0",
-        "pusher-js": "^8.4.0"
+        "pusher-js": "^8.4.0",
+        "vue-chartjs": "^5.3.2"
     }
 }
