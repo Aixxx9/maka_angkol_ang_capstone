@@ -1,9 +1,9 @@
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
-import { Link, router, useForm } from '@inertiajs/vue3'
+import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
-// ✅ props now include sports from backend
+// ✅ props include sports from backend
 const props = defineProps({
   sports:  { type: Array, default: () => [] },
   sport:   { type: String, default: null },
@@ -71,54 +71,6 @@ const avgPoints = computed(() => {
 const topScorer = computed(() =>
   [...filteredPlayers.value].sort((a,b)=>(b.ppg ?? 0) - (a.ppg ?? 0))[0] || null
 )
-
-// ✅ Add Player modal
-const showAddPlayer = ref(false)
-const avatarPreview = ref(null)
-const addForm = useForm({
-  first_name: '',
-  last_name: '',
-  number: '',
-  position: '',
-  team_id: '',
-  sport_slug: props.sport || '',
-  avatar: null,
-})
-
-function openAddModal() {
-  addForm.sport_slug = props.sport || ''
-  showAddPlayer.value = true
-}
-
-function onPickAvatar(e) {
-  const f = e.target.files?.[0]
-  addForm.avatar = f || null
-  if (avatarPreview.value) URL.revokeObjectURL(avatarPreview.value)
-  avatarPreview.value = f ? URL.createObjectURL(f) : null
-}
-
-function clearAvatar() {
-  addForm.avatar = null
-  if (avatarPreview.value) URL.revokeObjectURL(avatarPreview.value)
-  avatarPreview.value = null
-}
-
-function savePlayer() {
-  addForm.post('/athletes', {
-    forceFormData: true,
-    onSuccess: () => {
-      showAddPlayer.value = false
-      clearAvatar()
-      addForm.reset('first_name','last_name','number','position','team_id','sport_slug','avatar')
-      if (addForm.recentlySuccessful && addForm.sport_slug && addForm.sport_slug !== props.sport) {
-        chooseSport(addForm.sport_slug)
-      } else {
-        router.reload({ only: ['players'] })
-        nextTick(scrollToPlayers)
-      }
-    }
-  })
-}
 </script>
 
 <template>
@@ -128,14 +80,15 @@ function savePlayer() {
       <div class="flex items-center gap-3">
         <h1 class="text-3xl font-bold tracking-tight text-neutral-900">Athletes</h1>
         <div class="ml-auto" />
-        <button
-          type="button"
+        
+        <!-- ✅ Redirect to Create.vue -->
+        <Link
+          href="/athletes/create"
           class="inline-flex items-center gap-2 rounded-lg bg-[#0b66ff] px-4 py-2 text-white text-sm font-semibold shadow-sm hover:bg-[#0856d6] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0b66ff]/60"
-          @click="openAddModal"
         >
           <span class="text-base leading-none">＋</span>
           Add Player
-        </button>
+        </Link>
       </div>
 
       <!-- STEP 1: PICK A SPORT -->
@@ -268,78 +221,5 @@ function savePlayer() {
         Pick a sport above to view its athletes and statistics.
       </div>
     </section>
-
-    <!-- ADD PLAYER MODAL -->
-    <div
-      v-if="showAddPlayer"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-    >
-      <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden">
-        <div class="px-6 py-4 border-b border-neutral-200 flex items-center justify-between bg-neutral-50">
-          <div class="font-semibold text-neutral-900">Add Player</div>
-          <button class="text-neutral-500 hover:text-neutral-800 transition" @click="showAddPlayer=false">✕</button>
-        </div>
-
-        <form @submit.prevent="savePlayer" class="p-6 grid grid-cols-1 gap-4">
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1">First name</label>
-              <input v-model="addForm.first_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 shadow-sm focus:border-[#0b66ff] focus:ring-2 focus:ring-[#0b66ff]/30" required />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1">Last name</label>
-              <input v-model="addForm.last_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 shadow-sm focus:border-[#0b66ff] focus:ring-2 focus:ring-[#0b66ff]/30" required />
-            </div>
-          </div>
-
-          <div class="grid grid-cols-3 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1">Number</label>
-              <input v-model="addForm.number" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 shadow-sm focus:border-[#0b66ff] focus:ring-2 focus:ring-[#0b66ff]/30" placeholder="#" />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1">Position</label>
-              <input v-model="addForm.position" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 shadow-sm focus:border-[#0b66ff] focus:ring-2 focus:ring-[#0b66ff]/30" placeholder="PG / LW / etc." />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1">Team ID (optional)</label>
-              <input v-model="addForm.team_id" type="number" class="w-full rounded-lg border border-neutral-300 px-3 py-2 shadow-sm focus:border-[#0b66ff] focus:ring-2 focus:ring-[#0b66ff]/30" placeholder="Team ID" />
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1">Sport</label>
-            <select v-model="addForm.sport_slug" class="w-full rounded-lg border border-neutral-300 px-3 py-2 shadow-sm focus:border-[#0b66ff] focus:ring-2 focus:ring-[#0b66ff]/30" required>
-              <option value="" disabled>Select a sport…</option>
-              <option v-for="s in props.sports" :key="s.slug" :value="s.slug">{{ s.name }}</option>
-            </select>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1">Avatar (optional)</label>
-            <input type="file" accept="image/*" @change="onPickAvatar" class="block w-full text-sm text-neutral-700 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-neutral-100 file:text-neutral-700 hover:file:bg-neutral-200" />
-            <div v-if="avatarPreview" class="relative mt-3">
-              <img :src="avatarPreview" alt="preview" class="h-24 w-24 rounded-full object-cover ring-2 ring-white shadow-sm" />
-              <button type="button" class="absolute top-1 left-28 text-xs px-2 py-1 rounded bg-black/60 text-white hover:bg-black/70" @click="clearAvatar">Remove</button>
-            </div>
-          </div>
-
-          <div class="flex items-center justify-end gap-3 pt-2">
-            <button type="button" class="px-3 py-2 rounded-lg border border-neutral-300 bg-white hover:bg-neutral-50">Cancel</button>
-            <button
-              type="submit"
-              class="px-4 py-2 rounded-lg bg-[#0b66ff] text-white font-semibold shadow-sm hover:bg-[#0856d6] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0b66ff]/60"
-              :disabled="addForm.processing"
-            >
-              {{ addForm.processing ? 'Saving…' : 'Save Player' }}
-            </button>
-          </div>
-
-          <div v-if="addForm.errors && Object.keys(addForm.errors).length" class="text-sm text-red-600">
-            <div v-for="(msg, key) in addForm.errors" :key="key">{{ msg }}</div>
-          </div>
-        </form>
-      </div>
-    </div>
   </AppLayout>
 </template>

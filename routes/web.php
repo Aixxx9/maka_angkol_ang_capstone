@@ -105,7 +105,9 @@ Route::get('/videos', fn() => Inertia::render('Videos/Index'))->name('videos.ind
 | Athletes
 |--------------------------------------------------------------------------
 */
+
 Route::get('/athletes', [AthleteController::class, 'index'])->name('athletes.index');
+Route::get('/athletes/create', [AthleteController::class, 'create'])->name('athletes.create');
 Route::post('/athletes', [AthleteController::class, 'store'])->name('athletes.store');
 
 /*
