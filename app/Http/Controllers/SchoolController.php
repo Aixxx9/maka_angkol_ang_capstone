@@ -95,31 +95,34 @@ class SchoolController extends Controller
         $school = School::where('slug', $slug)->firstOrFail();
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name'    => 'required|string|max:255',
             'summary' => 'nullable|string',
-            'logo' => 'nullable|image|max:20480', // 20MB
+            'logo'    => 'nullable|image|max:20480',
         ]);
 
-        // ✅ Handle new logo upload if provided
+        // handle logo
         if ($request->hasFile('logo')) {
             if ($school->logo_path) {
-                Storage::disk('public')->delete($school->logo_path);
+                \Storage::disk('public')->delete($school->logo_path);
             }
             $validated['logo_path'] = $request->file('logo')->store('schools', 'public');
         }
 
         $school->update($validated);
 
+        // re-hydrate with full URL for Inertia
         $school->refresh();
+        if ($school->logo_path) {
+            $school->logo_path = \Storage::url($school->logo_path);
+        }
 
-        // ✅ Ensure proper logo URL is returned
-        $school->logo_path = $school->logo_path ? Storage::url($school->logo_path) : asset('images/default-logo.png');
-
-        return redirect()->back()->with([
-            'success' => '✅ School updated successfully!',
+        return back()->with([
+            'success' => 'School updated successfully!',
             'updatedSchool' => $school,
         ]);
     }
+
+
 
     /**
      * Remove the specified school from storage.
@@ -134,6 +137,6 @@ class SchoolController extends Controller
 
         $school->delete();
 
-        return redirect('/schools')->with('success', '🗑️ School deleted successfully.');
+        return redirect('/')->with('success', '🗑️ School deleted successfully.');
     }
 }
