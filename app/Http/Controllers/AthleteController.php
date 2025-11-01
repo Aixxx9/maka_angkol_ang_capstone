@@ -123,18 +123,71 @@ public function show(Athlete $athlete)
     ]);
 }
 
-public function storeGameStat(Request $request, Athlete $athlete)
-{
-    $data = $request->validate([
-        'points' => 'required|integer|min:0',
-        'rebounds' => 'required|integer|min:0',
-        'assists' => 'required|integer|min:0',
-        'fg_percent' => 'required|numeric|min:0|max:100',
-        'game_date' => 'required|date',
-    ]);
-    $athlete->gameStats()->create($data);
-    return back()->with('success', 'Game record added!');
-}
+    public function storeGameStat(Request $request, Athlete $athlete)
+    {
+        // Accept dynamic stats via sport config, but keep backwards compatibility
+        $baseValidated = $request->validate([
+            'game_date' => 'required|date',
+        ]);
+
+        $sport = $athlete->sport;
+        $config = collect($sport->stat_fields ?? [
+            ['key' => 'points', 'label' => 'Points', 'type' => 'number', 'agg' => 'sum'],
+            ['key' => 'rebounds', 'label' => 'Rebounds', 'type' => 'number', 'agg' => 'sum'],
+            ['key' => 'assists', 'label' => 'Assists', 'type' => 'number', 'agg' => 'sum'],
+            ['key' => 'fg_percent', 'label' => 'FG %', 'type' => 'percent', 'agg' => 'avg'],
+        ]);
+
+        $metrics = [];
+        if (is_array($request->input('stats'))) {
+            $stats = $request->input('stats', []);
+            // Filter to configured keys and validate
+            foreach ($config as $field) {
+                $k = $field['key'] ?? null;
+                if (!$k || !array_key_exists($k, $stats)) continue;
+                $val = $stats[$k];
+                if ($val === '' || $val === null) continue;
+                if (!is_numeric($val)) {
+                    return back()->withErrors(["stats.$k" => 'Must be numeric']);
+                }
+                $val = (float) $val;
+                if (($field['type'] ?? 'number') === 'percent' && ($val < 0 || $val > 100)) {
+                    return back()->withErrors(["stats.$k" => 'Percent must be between 0 and 100']);
+                }
+                $metrics[$k] = $val;
+            }
+        }
+
+        // Backwards compatibility: accept legacy fields if provided
+        $legacy = $request->only(['points', 'rebounds', 'assists', 'fg_percent']);
+        // If no dynamic stats were posted and none of legacy provided, enforce legacy validation
+        if (empty($metrics) && empty(array_filter($legacy, fn($v) => $v !== null && $v !== ''))) {
+            $legacy = $request->validate([
+                'points' => 'required|integer|min:0',
+                'rebounds' => 'required|integer|min:0',
+                'assists' => 'required|integer|min:0',
+                'fg_percent' => 'required|numeric|min:0|max:100',
+            ]);
+        }
+
+        $payload = array_merge(
+            [
+                'game_date' => $baseValidated['game_date'],
+                'metrics' => !empty($metrics) ? $metrics : null,
+            ],
+            // Prefer dynamic values for known legacy columns if present
+            [
+                'points' => isset($metrics['points']) ? (int) $metrics['points'] : ($legacy['points'] ?? 0),
+                'rebounds' => isset($metrics['rebounds']) ? (int) $metrics['rebounds'] : ($legacy['rebounds'] ?? 0),
+                'assists' => isset($metrics['assists']) ? (int) $metrics['assists'] : ($legacy['assists'] ?? 0),
+                // Avoid NULL in non-nullable column; default to 0 if not provided
+                'fg_percent' => isset($metrics['fg_percent']) ? (float) $metrics['fg_percent'] : ($legacy['fg_percent'] ?? 0),
+            ]
+        );
+
+        $athlete->gameStats()->create($payload);
+        return back()->with('success', 'Game record added!');
+    }
 
 public function destroyGameStat(Athlete $athlete, $stat)
 {

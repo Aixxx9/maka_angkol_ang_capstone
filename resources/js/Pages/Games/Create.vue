@@ -16,6 +16,7 @@ const form = useForm({
   away_team_id: '',
   starts_at: '',
   venue: '',
+  participants: [],
 })
 
 // ✅ Deduplicate teams by school name
@@ -31,8 +32,25 @@ const uniqueSchools = computed(() => {
   return filtered
 })
 
+const selectedIds = computed(() => {
+  const ids = new Set()
+  if (form.home_team_id) ids.add(Number(form.home_team_id))
+  if (form.away_team_id) ids.add(Number(form.away_team_id))
+  for (const v of form.participants) if (v) ids.add(Number(v))
+  return ids
+})
+
+const availableSchools = computed(() => {
+  // prevent duplicate selection
+  return uniqueSchools.value.filter(t => !selectedIds.value.has(Number(t.id)))
+})
+
 // ✅ Submit
 function submit() {
+  // ensure participants excludes blanks and duplicates and does not include home/away
+  const extras = Array.from(new Set((form.participants || []).filter(Boolean).map(Number)))
+    .filter(id => id !== Number(form.home_team_id) && id !== Number(form.away_team_id))
+  form.participants = extras
   form.post(route('games.store'), {
     onSuccess: () => form.reset(),
   })
@@ -72,8 +90,8 @@ function submit() {
           <p v-if="form.errors.sport_id" class="text-red-600 text-sm mt-1">{{ form.errors.sport_id }}</p>
         </div>
 
-        <!-- Teams -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <!-- Teams -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <!-- Home Team -->
           <div>
             <label class="block text-sm font-medium text-neutral-700 mb-1">Home Team</label>
@@ -93,7 +111,33 @@ function submit() {
               </option>
             </select>
             <p v-if="form.errors.home_team_id" class="text-red-600 text-sm mt-1">{{ form.errors.home_team_id }}</p>
-          </div>
+      </div>
+
+      <!-- Additional Schools (optional, multi) -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <label class="block text-sm font-medium text-neutral-700">Additional Schools</label>
+          <button type="button" @click="form.participants.push('')" class="text-sm text-[#0b66ff] hover:underline">+ Add School</button>
+        </div>
+        <div v-if="!form.participants.length" class="text-xs text-neutral-500">No additional schools. Click “+ Add School” to include more participants.</div>
+        <div v-for="(p, idx) in form.participants" :key="idx" class="flex items-center gap-2">
+          <select v-model="form.participants[idx]" class="flex-1 rounded-lg border border-neutral-300 px-3 py-2 shadow-sm bg-white focus:border-[#0b66ff] focus:ring-2 focus:ring-[#0b66ff]/30">
+            <option value="" disabled>Select school…</option>
+            <option
+              v-for="t in uniqueSchools"
+              :key="t.id + '-' + idx"
+              :value="t.id"
+              :disabled="selectedIds.has(Number(t.id)) && Number(form.participants[idx]) !== Number(t.id)"
+            >
+              {{ t.school?.name }}
+            </option>
+          </select>
+          <button type="button" @click="form.participants.splice(idx,1)" class="text-xs text-red-600">Remove</button>
+        </div>
+        <p v-if="form.errors['participants'] || form.errors['participants.*']" class="text-red-600 text-sm">
+          {{ form.errors['participants'] || form.errors['participants.*'] }}
+        </p>
+      </div>
 
           <!-- Away Team -->
           <div>

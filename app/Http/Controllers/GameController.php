@@ -15,7 +15,7 @@ class GameController extends Controller
      */
     public function schedule()
     {
-        $games = Game::with(['homeTeam.school', 'awayTeam.school', 'sport'])
+        $games = Game::with(['homeTeam.school', 'awayTeam.school', 'sport', 'teams.school'])
             ->orderBy('sport_id')
             ->orderBy('starts_at', 'asc')
             ->get();
@@ -59,11 +59,28 @@ class GameController extends Controller
             'away_team_id' => 'required|exists:teams,id',
             'starts_at'    => 'required|date',
             'venue'        => 'nullable|string|max:255',
+            'participants' => 'nullable|array',
+            'participants.*' => 'integer|exists:teams,id',
         ]);
 
         $data['status'] = 'scheduled';
 
-        Game::create($data);
+        $game = Game::create($data);
+
+        // Attach participants: include home/away plus any additional unique team IDs
+        $participantIds = array_filter($req->input('participants', []), fn($v) => !empty($v));
+        $participantIds[] = (int) $data['home_team_id'];
+        $participantIds[] = (int) $data['away_team_id'];
+        $participantIds = array_values(array_unique(array_map('intval', $participantIds)));
+        // Remove any accidental duplicates and ensure validity already validated above
+        if (!empty($participantIds)) {
+            // preserve order by array index via pivot 'position'
+            $attach = [];
+            foreach ($participantIds as $idx => $tid) {
+                $attach[$tid] = ['position' => $idx];
+            }
+            $game->teams()->sync($attach);
+        }
 
         return redirect()->route('schedule')
             ->with('success', 'Game schedule created successfully!');
@@ -152,9 +169,30 @@ class GameController extends Controller
             'away_team_id' => 'required|exists:teams,id',
             'starts_at'    => 'required|date',
             'venue'        => 'nullable|string|max:255',
+            'participants' => 'nullable|array',
+            'participants.*' => 'integer|exists:teams,id',
         ]);
 
         $game->update($data);
+
+        // Sync participants including home/away
+        $participantIds = array_filter($req->input('participants', []), fn($v) => !empty($v));
+        $participantIds[] = (int) $data['home_team_id'];
+        $participantIds[] = (int) $data['away_team_id'];
+        $participantIds = array_values(array_unique(array_map('intval', $participantIds)));
+        if (!empty($participantIds)) {
+            $attach = [];
+            foreach ($participantIds as $idx => $tid) {
+                $attach[$tid] = ['position' => $idx];
+            }
+            $game->teams()->sync($attach);
+        } else {
+            // Ensure at least home/away are attached
+            $game->teams()->sync([
+                (int) $data['home_team_id'] => ['position' => 0],
+                (int) $data['away_team_id'] => ['position' => 1],
+            ]);
+        }
 
         return redirect()->route('schedule')->with('success', 'Game updated successfully!');
     }

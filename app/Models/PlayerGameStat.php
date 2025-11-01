@@ -16,6 +16,11 @@ class PlayerGameStat extends Model
         'assists',
         'fg_percent',
         'game_date',
+        'metrics',
+    ];
+
+    protected $casts = [
+        'metrics' => 'array',
     ];
 
     public function athlete()

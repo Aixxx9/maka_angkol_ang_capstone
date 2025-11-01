@@ -35,6 +35,11 @@ class SportController extends Controller
             'type'        => 'required|in:team,individual',
             'description' => 'nullable|string',
             'icon'        => 'nullable|image|max:2048',
+            'stat_fields' => 'nullable|array',
+            'stat_fields.*.key'   => 'required_with:stat_fields|string|max:50',
+            'stat_fields.*.label' => 'required_with:stat_fields|string|max:100',
+            'stat_fields.*.type'  => 'nullable|in:number,percent',
+            'stat_fields.*.agg'   => 'nullable|in:sum,avg',
         ]);
 
         // Generate slug if not provided
@@ -52,6 +57,7 @@ class SportController extends Controller
             'type' => $validated['type'],
             'description' => $validated['description'] ?? null,
             'icon_path' => $iconPath,
+            'stat_fields' => $validated['stat_fields'] ?? null,
         ]);
 
         return redirect()->route('sports.index')
@@ -85,15 +91,20 @@ public function edit(Sport $sport)
     ]);
 }
 
-public function update(Request $request, Sport $sport)
-{
-    $validated = $request->validate([
-        'name'        => 'required|string|max:255',
-        'slug'        => 'nullable|string|max:255|unique:sports,slug,' . $sport->id,
-        'type'        => 'required|in:team,individual',
-        'description' => 'nullable|string',
-        'icon'        => 'nullable|image|max:20480',
-    ]);
+    public function update(Request $request, Sport $sport)
+    {
+        $validated = $request->validate([
+            'name'        => 'required|string|max:255',
+            'slug'        => 'nullable|string|max:255|unique:sports,slug,' . $sport->id,
+            'type'        => 'required|in:team,individual',
+            'description' => 'nullable|string',
+            'icon'        => 'nullable|image|max:20480',
+            'stat_fields' => 'nullable|array',
+            'stat_fields.*.key'   => 'required_with:stat_fields|string|max:50',
+            'stat_fields.*.label' => 'required_with:stat_fields|string|max:100',
+            'stat_fields.*.type'  => 'nullable|in:number,percent',
+            'stat_fields.*.agg'   => 'nullable|in:sum,avg',
+        ]);
 
     $slug = $validated['slug'] ?? \Str::slug($validated['name'], '-');
 
@@ -111,6 +122,7 @@ public function update(Request $request, Sport $sport)
         'type' => $validated['type'],
         'description' => $validated['description'] ?? null,
         'icon_path' => $sport->icon_path,
+        'stat_fields' => $validated['stat_fields'] ?? $sport->stat_fields,
     ]);
 
     return redirect()->route('sports.index')->with('success', 'Sport updated successfully!');

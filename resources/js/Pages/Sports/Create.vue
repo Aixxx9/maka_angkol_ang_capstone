@@ -9,9 +9,19 @@ const form = useForm({
   description: '',
   type: 'team', // team | individual
   icon: null,
+  stat_fields: [],
 })
 
 const preview = ref(null)
+
+// Dynamic stat fields (pointing system)
+const newField = () => ({ key: '', label: '', type: 'number', agg: 'sum' })
+const statFields = ref([
+  { key: 'points', label: 'Points', type: 'number', agg: 'sum' },
+  { key: 'rebounds', label: 'Rebounds', type: 'number', agg: 'sum' },
+  { key: 'assists', label: 'Assists', type: 'number', agg: 'sum' },
+  { key: 'fg_percent', label: 'FG %', type: 'percent', agg: 'avg' },
+])
 
 function handleIconUpload(e) {
   const f = e.target.files?.[0]
@@ -25,12 +35,19 @@ function clearIcon() {
   preview.value = null
 }
 function submitForm() {
+  form.stat_fields = statFields.value
   form.post('/sports', {
     forceFormData: true,
     onSuccess: () => {
       alert('✅ Sport added successfully!');
       form.reset();
       clearIcon();
+      statFields.value = [
+        { key: 'points', label: 'Points', type: 'number', agg: 'sum' },
+        { key: 'rebounds', label: 'Rebounds', type: 'number', agg: 'sum' },
+        { key: 'assists', label: 'Assists', type: 'number', agg: 'sum' },
+        { key: 'fg_percent', label: 'FG %', type: 'percent', agg: 'avg' },
+      ]
     },
   });
 }
@@ -89,6 +106,27 @@ function submitForm() {
               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#0b66ff]/40 focus:border-[#0b66ff]"
               placeholder="Describe the sport briefly..."
             ></textarea>
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold mb-2">Stat Fields (Pointing System)</label>
+            <p class="text-xs text-gray-500 mb-3">Define the stats tracked for this sport. Example: Points, Rebounds, Assists, FG %.</p>
+            <div class="space-y-3">
+              <div v-for="(f, idx) in statFields" :key="idx" class="grid grid-cols-12 gap-2 items-center">
+                <input v-model="f.label" placeholder="Label (e.g. Points)" class="col-span-4 border rounded px-3 py-2 text-sm" />
+                <input v-model="f.key" placeholder="Key (e.g. points)" class="col-span-3 border rounded px-3 py-2 text-sm" />
+                <select v-model="f.type" class="col-span-2 border rounded px-2 py-2 text-sm">
+                  <option value="number">Number</option>
+                  <option value="percent">Percent</option>
+                </select>
+                <select v-model="f.agg" class="col-span-2 border rounded px-2 py-2 text-sm">
+                  <option value="sum">Sum</option>
+                  <option value="avg">Average</option>
+                </select>
+                <button type="button" @click="statFields.splice(idx, 1)" class="col-span-1 text-red-600 text-sm">✕</button>
+              </div>
+              <button type="button" @click="statFields.push(newField())" class="text-sm text-[#0b66ff]">+ Add Field</button>
+            </div>
           </div>
 
           <div>

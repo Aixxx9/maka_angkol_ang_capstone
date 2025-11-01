@@ -35,6 +35,37 @@ const fullName = (p) => [p?.first_name, p?.last_name].filter(Boolean).join(' ')
 const n1 = (n) => (typeof n === 'number' ? n.toFixed(1) : '—')
 const pct = (n) => (typeof n === 'number' ? `${n.toFixed(1)}%` : '—')
 
+// Dynamic stat helpers for player cards
+const defaultFields = [
+  { key: 'points', label: 'Points', type: 'number', agg: 'avg' },
+  { key: 'rebounds', label: 'Rebounds', type: 'number', agg: 'avg' },
+  { key: 'assists', label: 'Assists', type: 'number', agg: 'avg' },
+  { key: 'fg_percent', label: 'FG %', type: 'percent', agg: 'avg' },
+]
+function playerMetric(player, field) {
+  const stats = Array.isArray(player?.game_stats) ? player.game_stats : []
+  let sum = 0
+  let count = 0
+  for (const s of stats) {
+    const raw = (s.metrics && s.metrics[field.key] != null) ? s.metrics[field.key] : s[field.key]
+    if (raw === null || raw === undefined || raw === '') continue
+    const n = Number(raw)
+    if (!Number.isFinite(n)) continue
+    sum += n
+    count += 1
+  }
+  if (field.agg === 'avg') {
+    return count ? sum / count : null
+  }
+  return sum
+}
+function formatMetric(field, value) {
+  if (value === null || value === undefined || Number.isNaN(value)) return '—'
+  if (field.type === 'percent') return `${Number(value).toFixed(1)}%`
+  const v = Number(value)
+  return Number.isInteger(v) ? String(v) : v.toFixed(1)
+}
+
 // School filter helpers
 const schoolFilter = ref('')
 const availableSchools = computed(() => {
@@ -163,10 +194,7 @@ function confirmDelete() {
 // ==========================
 const showRecordModal = ref(false)
 const recordForm = useForm({
-  points: '',
-  rebounds: '',
-  assists: '',
-  fg_percent: '',
+  stats: {},
   game_date: '',
 })
 
@@ -210,6 +238,18 @@ function getPeriodMeta(date, mode) {
 function openRecordModal(player) {
   selectedPlayer.value = player
   showRecordModal.value = true
+  // Initialize dynamic stat inputs from sport config (fallback to defaults)
+  const cfg = (player?.sport?.stat_fields && player.sport.stat_fields.length)
+    ? player.sport.stat_fields
+    : [
+        { key: 'points', label: 'Points', type: 'number', agg: 'sum' },
+        { key: 'rebounds', label: 'Rebounds', type: 'number', agg: 'sum' },
+        { key: 'assists', label: 'Assists', type: 'number', agg: 'sum' },
+        { key: 'fg_percent', label: 'FG %', type: 'percent', agg: 'avg' },
+      ]
+  const init = {}
+  for (const f of cfg) init[f.key] = ''
+  recordForm.stats = init
   nextTick(renderChart)
 }
 
@@ -219,24 +259,47 @@ function renderChart() {
   const stats = [...selectedPlayer.value.game_stats]
     .filter(s => !!s.game_date)
     .sort((a, b) => new Date(a.game_date) - new Date(b.game_date))
+  // Use dynamic stat fields from sport (fallback to defaults)
+  const fields = (selectedPlayer.value?.sport?.stat_fields && selectedPlayer.value.sport.stat_fields.length)
+    ? selectedPlayer.value.sport.stat_fields
+    : [
+        { key: 'points', label: 'Points', type: 'number', agg: 'sum' },
+        { key: 'rebounds', label: 'Rebounds', type: 'number', agg: 'sum' },
+        { key: 'assists', label: 'Assists', type: 'number', agg: 'sum' },
+        { key: 'fg_percent', label: 'FG %', type: 'percent', agg: 'avg' },
+      ]
 
   const grouped = new Map()
   for (const s of stats) {
     const { key, label, sortDate } = getPeriodMeta(s.game_date, timeRange.value)
-    if (!grouped.has(key)) grouped.set(key, { label, sortDate, points: 0, rebounds: 0, assists: 0, fgSum: 0, count: 0 })
+    if (!grouped.has(key)) {
+      const init = { label, sortDate, count: 0 }
+      for (const f of fields) {
+        init[`${f.key}_sum`] = 0
+      }
+      grouped.set(key, init)
+    }
     const g = grouped.get(key)
-    g.points += Number(s.points || 0)
-    g.rebounds += Number(s.rebounds || 0)
-    g.assists += Number(s.assists || 0)
-    if (s.fg_percent != null) g.fgSum += Number(s.fg_percent)
+    for (const f of fields) {
+      // Prefer metrics JSON, fallback to legacy column
+      const mval = (s.metrics && s.metrics[f.key] != null) ? s.metrics[f.key] : s[f.key]
+      g[`${f.key}_sum`] += Number(mval || 0)
+    }
     g.count += 1
   }
 
   const rows = [...grouped.values()].sort((a, b) => a.sortDate - b.sortDate)
   const labels = rows.map(r => r.label)
-  const points = rows.map(r => r.points)
-  const rebounds = rows.map(r => r.rebounds)
-  const assists = rows.map(r => r.assists)
+  // Build datasets per field with sum/avg aggregation
+  const palette = ['#0b66ff', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#22c55e']
+  const datasets = fields.map((f, idx) => {
+    const color = palette[idx % palette.length]
+    const data = rows.map(r => {
+      const total = r[`${f.key}_sum`] || 0
+      return (f.agg === 'avg' && r.count) ? total / r.count : total
+    })
+    return { label: f.label, data, borderColor: color, backgroundColor: color + '22', tension: 0.3 }
+  })
 
   if (chartInstance) chartInstance.destroy()
 
@@ -244,11 +307,7 @@ function renderChart() {
     type: 'line',
     data: {
       labels,
-      datasets: [
-        { label: 'Points', data: points, borderColor: '#0b66ff', backgroundColor: '#0b66ff22', tension: 0.3 },
-        { label: 'Rebounds', data: rebounds, borderColor: '#10b981', backgroundColor: '#10b98122', tension: 0.3 },
-        { label: 'Assists', data: assists, borderColor: '#f59e0b', backgroundColor: '#f59e0b22', tension: 0.3 },
-      ],
+      datasets,
     },
     options: {
       responsive: true,
@@ -309,6 +368,43 @@ watch(() => props.players, async (list) => {
 watch(timeRange, async () => {
   await nextTick()
   renderChart()
+})
+
+// Dynamic summary cards (adapt to sport's stat_fields)
+const summaryCards = computed(() => {
+  const p = selectedPlayer.value
+  if (!p) return []
+  const fields = (p?.sport?.stat_fields && p.sport.stat_fields.length)
+    ? p.sport.stat_fields
+    : [
+        { key: 'points', label: 'Points', type: 'number', agg: 'avg' },
+        { key: 'rebounds', label: 'Rebounds', type: 'number', agg: 'avg' },
+        { key: 'assists', label: 'Assists', type: 'number', agg: 'avg' },
+        { key: 'fg_percent', label: 'FG %', type: 'percent', agg: 'avg' },
+      ]
+
+  const stats = Array.isArray(p.game_stats) ? p.game_stats : []
+  const totals = {}
+  for (const f of fields) totals[f.key] = { sum: 0, count: 0 }
+  for (const s of stats) {
+    for (const f of fields) {
+      const v = (s.metrics && s.metrics[f.key] != null) ? s.metrics[f.key] : s[f.key]
+      if (v === null || v === undefined || v === '') continue
+      const n = Number(v)
+      if (!Number.isFinite(n)) continue
+      totals[f.key].sum += n
+      totals[f.key].count += 1
+    }
+  }
+
+  return fields.map(f => {
+    const t = totals[f.key] || { sum: 0, count: 0 }
+    const val = (f.agg === 'avg' && t.count) ? (t.sum / t.count) : t.sum
+    const formatted = (f.type === 'percent')
+      ? (t.count || t.sum ? `${val.toFixed(1)}%` : '—')
+      : (t.count || t.sum ? (Number.isInteger(val) ? String(val) : val.toFixed(1)) : '—')
+    return { key: f.key, label: f.label, value: formatted }
+  })
 })
 </script>
 
@@ -410,22 +506,15 @@ watch(timeRange, async () => {
             </div>
 
             <div class="px-4 pb-2 grid grid-cols-4 gap-2 text-center">
-              <div class="rounded-md bg-neutral-50 p-2">
-                <div class="text-[11px] text-neutral-500">PPG</div>
-                <div class="text-lg font-extrabold">{{ n1(p.ppg) }}</div>
-              </div>
-              <div class="rounded-md bg-neutral-50 p-2">
-                <div class="text-[11px] text-neutral-500">RPG</div>
-                <div class="text-lg font-extrabold">{{ n1(p.rpg) }}</div>
-              </div>
-              <div class="rounded-md bg-neutral-50 p-2">
-                <div class="text-[11px] text-neutral-500">APG</div>
-                <div class="text-lg font-extrabold">{{ n1(p.apg) }}</div>
-              </div>
-              <div class="rounded-md bg-neutral-50 p-2">
-                <div class="text-[11px] text-neutral-500">FG%</div>
-                <div class="text-lg font-extrabold">{{ pct(p.fg) }}</div>
-              </div>
+              <template
+                v-for="f in ((p?.sport?.stat_fields && p.sport.stat_fields.length) ? p.sport.stat_fields.slice(0,4) : defaultFields)"
+                :key="f.key"
+              >
+                <div class="rounded-md bg-neutral-50 p-2">
+                  <div class="text-[11px] text-neutral-500">{{ f.label }}</div>
+                  <div class="text-lg font-extrabold">{{ formatMetric(f, playerMetric(p, f)) }}</div>
+                </div>
+              </template>
             </div>
 
             <div class="flex justify-center gap-4 pb-4">
@@ -447,31 +536,27 @@ watch(timeRange, async () => {
 
         <div class="p-5 space-y-5 overflow-y-auto max-h-[75vh]">
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div class="rounded-xl bg-neutral-50 border p-3 text-center shadow-sm">
-              <div class="text-xs text-neutral-500">PPG</div>
-              <div class="text-2xl font-extrabold text-neutral-900">{{ selectedPlayer.ppg ?? '—' }}</div>
-            </div>
-            <div class="rounded-xl bg-neutral-50 border p-3 text-center shadow-sm">
-              <div class="text-xs text-neutral-500">RPG</div>
-              <div class="text-2xl font-extrabold text-neutral-900">{{ selectedPlayer.rpg ?? '—' }}</div>
-            </div>
-            <div class="rounded-xl bg-neutral-50 border p-3 text-center shadow-sm">
-              <div class="text-xs text-neutral-500">APG</div>
-              <div class="text-2xl font-extrabold text-neutral-900">{{ selectedPlayer.apg ?? '—' }}</div>
-            </div>
-            <div class="rounded-xl bg-neutral-50 border p-3 text-center shadow-sm">
-              <div class="text-xs text-neutral-500">FG%</div>
-              <div class="text-2xl font-extrabold text-neutral-900">{{ selectedPlayer.fg ?? '—' }}</div>
+            <div
+              v-for="card in summaryCards"
+              :key="card.key"
+              class="rounded-xl bg-neutral-50 border p-3 text-center shadow-sm"
+            >
+              <div class="text-xs text-neutral-500">{{ card.label }}</div>
+              <div class="text-2xl font-extrabold text-neutral-900">{{ card.value }}</div>
             </div>
           </div>
 
           <div class="bg-neutral-50 rounded-xl border p-5 shadow-inner">
             <h3 class="font-semibold text-neutral-800 mb-3">Add / Update Game Record</h3>
             <form @submit.prevent="saveGameRecord" class="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              <input v-model="recordForm.points" type="number" placeholder="Points" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#0b66ff]" />
-              <input v-model="recordForm.rebounds" type="number" placeholder="Rebounds" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#0b66ff]" />
-              <input v-model="recordForm.assists" type="number" placeholder="Assists" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#0b66ff]" />
-              <input v-model="recordForm.fg_percent" type="number" step="0.1" placeholder="FG%" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#0b66ff]" />
+              <template v-for="(f, idx) in ((selectedPlayer?.sport?.stat_fields && selectedPlayer.sport.stat_fields.length) ? selectedPlayer.sport.stat_fields : [
+                { key: 'points', label: 'Points', type: 'number', agg: 'sum' },
+                { key: 'rebounds', label: 'Rebounds', type: 'number', agg: 'sum' },
+                { key: 'assists', label: 'Assists', type: 'number', agg: 'sum' },
+                { key: 'fg_percent', label: 'FG %', type: 'percent', agg: 'avg' },
+              ])" :key="f.key">
+                <input :placeholder="f.label" :type="'number'" :step="f.type === 'percent' ? 0.1 : 1" v-model="recordForm.stats[f.key]" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#0b66ff]" />
+              </template>
               <input v-model="recordForm.game_date" type="date" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#0b66ff]" />
               <div class="col-span-2 sm:col-span-5 flex justify-end gap-3 mt-2">
                 <button type="submit" class="bg-[#0b66ff] hover:bg-[#084dcc] text-white rounded-lg px-4 py-2 text-sm font-semibold shadow">
@@ -520,7 +605,17 @@ watch(timeRange, async () => {
                 <div>
                   <div class="font-medium text-neutral-800">{{ r.game_date }}</div>
                   <div class="text-xs text-neutral-600">
-                    Pts: {{ r.points }} | Reb: {{ r.rebounds }} | Ast: {{ r.assists }} | FG%: {{ r.fg_percent }}
+                    <template v-for="(f, i) in ((selectedPlayer?.sport?.stat_fields && selectedPlayer.sport.stat_fields.length) ? selectedPlayer.sport.stat_fields : [
+                      { key: 'points', label: 'Points' },
+                      { key: 'rebounds', label: 'Rebounds' },
+                      { key: 'assists', label: 'Assists' },
+                      { key: 'fg_percent', label: 'FG %' },
+                    ])" :key="f.key">
+                      <span>
+                        {{ f.label }}: {{ (r.metrics && r.metrics[f.key] != null) ? r.metrics[f.key] : r[f.key] }}
+                      </span>
+                      <span v-if="i < ((selectedPlayer?.sport?.stat_fields && selectedPlayer.sport.stat_fields.length) ? selectedPlayer.sport.stat_fields.length : 4) - 1"> | </span>
+                    </template>
                   </div>
                 </div>
                 <div class="flex items-center gap-2">

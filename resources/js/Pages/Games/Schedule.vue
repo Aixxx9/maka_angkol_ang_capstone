@@ -30,8 +30,6 @@ function logoPath(p) {
   return p.startsWith('/storage') ? p : `/storage/${p}`
 }
 
-const placeholders = computed(() => Math.max(0, 4 - (props.games?.length ?? 0)))
-
 const selectedGame = ref(null)
 
 function openModal(game) {
@@ -41,7 +39,6 @@ function closeModal() {
   selectedGame.value = null
 }
 
-// ✅ Public version (no /admin/)
 function deleteGame(id) {
   if (confirm('Are you sure you want to delete this schedule?')) {
     router.delete(`/games/${id}`, {
@@ -52,6 +49,23 @@ function deleteGame(id) {
 function editGame(id) {
   router.visit(`/games/${id}/edit`)
 }
+
+// ✅ Collect all teams dynamically
+function getParticipants(g) {
+  if (Array.isArray(g.teams) && g.teams.length) {
+    return g.teams.map(t => t?.school).filter(Boolean)
+  }
+  const arr = []
+  if (g.home_team?.school) arr.push(g.home_team.school)
+  if (g.away_team?.school) arr.push(g.away_team.school)
+  return arr
+}
+
+// ✅ For modal display
+const participants = computed(() => {
+  const g = selectedGame.value
+  return g ? getParticipants(g) : []
+})
 </script>
 
 <template>
@@ -82,38 +96,31 @@ function editGame(id) {
             <div class="text-neutral-600">{{ fmtTime(g.starts_at) }}</div>
           </div>
 
-          <!-- Teams -->
-          <div class="flex">
-            <div class="flex-1 p-4">
-              <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                <div class="flex items-center justify-start gap-2">
-                  <span class="text-sm font-bold text-neutral-800">{{ g.home_team?.school?.name }}</span>
-                  <img v-if="g.home_team?.school?.logo_path" :src="logoPath(g.home_team.school.logo_path)" class="h-6 w-6 rounded-full object-contain" />
+          <!-- Dynamic Teams -->
+          <div class="p-4 flex flex-col items-center text-center space-y-3">
+            <div class="flex flex-wrap justify-center gap-3">
+              <template v-for="(sch, i) in getParticipants(g)" :key="i">
+                <div class="flex flex-col items-center">
+                  <img
+                    :src="logoPath(sch?.logo_path)"
+                    class="h-10 w-10 rounded-full object-contain ring-1 ring-neutral-300 bg-white"
+                  />
+                  <span class="text-[12px] font-semibold text-neutral-800 mt-1 max-w-[100px] truncate">
+                    {{ sch?.name }}
+                  </span>
                 </div>
-                <div class="text-center">
-                  <span class="text-sm font-medium text-neutral-500">vs</span>
-                </div>
-                <div class="flex items-center justify-end gap-2">
-                  <img v-if="g.away_team?.school?.logo_path" :src="logoPath(g.away_team.school.logo_path)" class="h-6 w-6 rounded-full object-contain" />
-                  <span class="text-sm font-bold text-neutral-800">{{ g.away_team?.school?.name }}</span>
-                </div>
-              </div>
-              <div class="mt-4 text-[15px] font-semibold text-[#6f39ff]">
-                # {{ g.sport?.name || 'Unknown Sport' }}
-              </div>
+                <!-- Show VS between 2 schools only -->
+                <span
+                  v-if="getParticipants(g).length === 2 && i === 0"
+                  class="self-center text-[#0b66ff] font-bold text-sm mx-1"
+                >
+                  VS
+                </span>
+              </template>
             </div>
 
-            <!-- Info section -->
-            <div class="w-px bg-neutral-200"></div>
-            <div class="w-40 p-4 flex flex-col justify-center space-y-3 text-center">
-              <div class="flex items-center justify-center gap-1 text-[13px] font-bold text-neutral-800">
-                <span class="truncate max-w-[70px]">{{ g.home_team?.school?.name }}</span>
-                <span class="text-[#0b66ff] font-extrabold">VS</span>
-                <span class="truncate max-w-[70px]">{{ g.away_team?.school?.name }}</span>
-              </div>
-              <div class="text-[13px] text-neutral-600">📍 {{ g.venue || 'TBA' }}</div>
-              <div class="text-[13px] text-neutral-700">🏅 {{ g.sport?.name || 'Unknown Sport' }}</div>
-            </div>
+            <div class="text-[15px] font-semibold text-[#6f39ff] mt-3"># {{ g.sport?.name || 'Unknown Sport' }}</div>
+            <div class="text-xs text-neutral-600 mt-1">📍 {{ g.venue || 'TBA' }}</div>
           </div>
 
           <!-- Footer -->
@@ -131,35 +138,33 @@ function editGame(id) {
       @click.self="closeModal"
     >
       <div class="relative w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl animate-fade-in border border-white/20 bg-white/10 backdrop-blur-lg">
-        <!-- Split Backgrounds -->
-        <div class="grid grid-cols-2 h-80 relative">
-          <!-- Left -->
+        <!-- Participants logos grid -->
+        <div class="relative p-8 bg-gradient-to-br from-black/60 to-black/40">
           <div
-            class="relative bg-cover bg-center"
-            :style="{ backgroundImage: `url('${logoPath(selectedGame.home_team?.school?.logo_path)}')` }"
+            class="grid gap-6 place-items-center auto-cols-fr"
+            :class="participants.length <= 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5'"
           >
-            <div class="absolute inset-0 bg-black/45 flex items-center justify-center">
-              <h2 class="text-2xl font-extrabold text-white text-center drop-shadow-lg px-4">
-                {{ selectedGame.home_team?.school?.name }}
-              </h2>
+            <div
+              v-for="(sch, i) in participants"
+              :key="i"
+              class="flex flex-col items-center justify-center"
+            >
+              <img
+                :src="logoPath(sch?.logo_path)"
+                class="h-20 w-20 sm:h-24 sm:w-24 rounded-full object-contain ring-2 ring-white bg-white shadow-lg"
+              />
+              <div class="mt-2 text-xs sm:text-sm text-white/90 font-medium text-center truncate max-w-[100px]">
+                {{ sch?.name }}
+              </div>
             </div>
           </div>
 
-          <!-- Right -->
+          <!-- VS only if exactly 2 teams -->
           <div
-            class="relative bg-cover bg-center"
-            :style="{ backgroundImage: `url('${logoPath(selectedGame.away_team?.school?.logo_path)}')` }"
+            v-if="participants.length === 2"
+            class="absolute inset-0 flex items-center justify-center pointer-events-none"
           >
-            <div class="absolute inset-0 bg-black/45 flex items-center justify-center">
-              <h2 class="text-2xl font-extrabold text-white text-center drop-shadow-lg px-4">
-                {{ selectedGame.away_team?.school?.name }}
-              </h2>
-            </div>
-          </div>
-
-          <!-- VS -->
-          <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-            <span class="text-6xl font-extrabold text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">
+            <span class="text-6xl font-extrabold text-white drop-shadow-[0_3px_10px_rgba(0,0,0,0.9)]">
               VS
             </span>
           </div>
@@ -171,11 +176,8 @@ function editGame(id) {
           <div class="text-white/90">
             📅 {{ fmtDate(selectedGame.starts_at) }} — 🕒 {{ fmtTime(selectedGame.starts_at) }}
           </div>
-          <div class="mt-1 text-white/90">
-            📍 {{ selectedGame.venue || 'Venue not set' }}
-          </div>
+          <div class="mt-1 text-white/90">📍 {{ selectedGame.venue || 'Venue not set' }}</div>
 
-          <!-- Buttons -->
           <div class="mt-6 flex justify-center gap-4">
             <button
               @click="editGame(selectedGame.id)"

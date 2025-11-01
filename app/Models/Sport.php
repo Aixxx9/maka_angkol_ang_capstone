@@ -17,5 +17,10 @@ class Sport extends Model
         'icon_path',
         'team_count',
         'athlete_count',
+        'stat_fields',
+    ];
+
+    protected $casts = [
+        'stat_fields' => 'array',
     ];
 }

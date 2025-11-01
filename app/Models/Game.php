@@ -31,4 +31,9 @@ class Game extends Model
     {
         return $this->belongsTo(Team::class, 'away_team_id');
     }
+
+    public function teams()
+    {
+        return $this->belongsToMany(Team::class, 'game_team')->withTimestamps()->withPivot('position');
+    }
 }
