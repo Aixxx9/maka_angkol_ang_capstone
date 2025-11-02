@@ -56,8 +56,8 @@ class Athlete extends Model
             return Storage::url($this->avatar_path);
         }
 
-        // Default image if no avatar
-        return asset('images/user.png');
+        // Default image if no avatar (ensure file exists)
+        return asset('images/default-logo.png');
     }
 
     public function gameStats() {

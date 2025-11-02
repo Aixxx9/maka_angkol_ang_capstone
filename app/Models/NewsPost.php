@@ -2,50 +2,58 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
 
 class NewsPost extends Model
 {
-    protected $table = 'posts';
+    use HasFactory;
 
     protected $fillable = [
-        'author_id','title','slug','excerpt','body','cover_image_path',
-        'category','is_featured','views_count','published_at',
+        'author_id',
+        'title',
+        'slug',
+        'excerpt',
+        'body',
+        'cover_image_path',
+        'category',
+        'is_featured',
+        'published_at',
+        'views_count',
     ];
 
     protected $casts = [
-        'is_featured'  => 'boolean',
+        'is_featured' => 'boolean',
         'published_at' => 'datetime',
     ];
 
-    public function getRouteKeyName(): string
+    // === SCOPES ===
+    public function scopePublished($query)
     {
-        return 'slug';
+        return $query->whereNotNull('published_at')->where('published_at', '<=', now());
     }
 
-    public function author(): BelongsTo
+    public function scopeFeatured($query)
+    {
+        return $query->where('is_featured', true);
+    }
+
+    // === ACCESSORS ===
+    public function getCoverUrlAttribute()
+    {
+        return $this->cover_image_path
+            ? Storage::url($this->cover_image_path)
+            : '/images/default-logo.png';
+    }
+
+    public function author()
     {
         return $this->belongsTo(User::class, 'author_id');
     }
+    public function getRouteKeyName()
+{
+    return 'slug';
+}
 
-    /* -------- Scopes used in the controller -------- */
-    public function scopePublished($q)
-    {
-        return $q->whereNotNull('published_at')->where('published_at', '<=', now());
-    }
-
-    public function scopeFeatured($q)
-    {
-        return $q->where('is_featured', true);
-    }
-
-    /* -------- Accessors -------- */
-    public function getCoverUrlAttribute(): ?string
-    {
-        if (!$this->cover_image_path) return null;
-        return str_starts_with($this->cover_image_path, '/storage')
-            ? $this->cover_image_path
-            : '/storage/'.$this->cover_image_path;
-    }
 }

@@ -1,0 +1,306 @@
+1	<script setup>
+2	import { Link } from '@inertiajs/vue3'
+3	import { ref, computed, watch } from 'vue'
+4	import AppLayout from '@/Layouts/AppLayout.vue'
+5	
+6	const props = defineProps({
+7	  featured: Array,         // 4 top stories (first is main)
+8	  playersBySport: Array,   // [{ sport, players: [] }]
+9	  gamesBySport: Array,     // [{ sport, games: [] }]
+10	  news: Array              // general news list
+11	})
+12	
+13	const showPlayerModal = ref(false)
+14	const selectedPlayer = ref(null)
+15	const showGameModal = ref(false)
+16	const selectedGame = ref(null)
+17	
+18	const openPlayerModal = (player) => {
+19	  selectedPlayer.value = player
+20	  showPlayerModal.value = true
+21	}
+22	const openGameModal = (game) => {
+23	  selectedGame.value = game
+24	  showGameModal.value = true
+25	}
+26	const closePlayerModal = () => { showPlayerModal.value = false; selectedPlayer.value = null }
+27	const closeGameModal = () => { showGameModal.value = false; selectedGame.value = null }
+28	
+29	// Top players: dropdown to pick sport (default Basketball)
+30	const sportOptions = computed(() => (props.playersBySport || []).map(s => s.sport))
+31	const selectedSportSlug = ref('')
+32	
+33	function pickDefaultSlug(opts) {
+34	  if (!opts || !opts.length) return ''
+35	  const b = opts.find(o => (o?.slug || '').toLowerCase() === 'basketball')
+36	  return (b && b.slug) || opts[0].slug
+37	}
+38	
+39	// Initialize default
+40	selectedSportSlug.value = pickDefaultSlug(sportOptions.value)
+41	
+42	// Keep selection valid when options change
+43	watch(sportOptions, (opts) => {
+44	  if (!opts.length) { selectedSportSlug.value = ''; return }
+45	  if (!opts.some(o => o.slug === selectedSportSlug.value)) {
+46	    selectedSportSlug.value = pickDefaultSlug(opts)
+47	  }
+48	})
+49	
+50	const selectedPlayersSection = computed(() => {
+51	  const slug = selectedSportSlug.value
+52	  return (props.playersBySport || []).find(sec => sec?.sport?.slug === slug)
+53	})
+54	</script>
+55	
+56	<template>
+57	  <AppLayout title="Home">
+58	    <div class="home-page min-h-screen bg-[#f9fafc] text-[#111827] font-inter">
+59	      <div class="max-w-[1200px] mx-auto w-full px-4 py-8">
+60	
+61	        <!-- 🏆 HERO SECTION -->
+62	        <section class="mb-12">
+63	          <h2 class="text-2xl font-extrabold mb-6 tracking-tight">LATEST HIGHLIGHTS</h2>
+64	          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+65	            <!-- Main big article -->
+66	            <div
+67	              v-if="featured[0]"
+68	              class="relative col-span-2 cursor-pointer rounded-xl overflow-hidden shadow-lg group"
+69	              @click="$inertia.visit(route('news.show', featured[0].slug))"
+70	            >
+71	              <img
+72	                :src="featured[0].cover"
+73	                alt="main news"
+74	                class="h-[450px] w-full object-cover group-hover:scale-105 transition-transform duration-700"
+75	              />
+76	              <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-6 flex flex-col justify-end">
+77	                <h2 class="text-3xl font-bold text-white mb-2 group-hover:text-[#0b66ff] transition">
+78	                  {{ featured[0].title }}
+79	                </h2>
+80	                <p class="text-white/80 line-clamp-2">{{ featured[0].excerpt }}</p>
+81	                <span class="text-xs text-white/70 mt-2">{{ featured[0].published }}</span>
+82	              </div>
+83	            </div>
+84	
+85	            <!-- Side articles -->
+86	            <div class="flex flex-col gap-5">
+87	              <div
+88	                v-for="(item, idx) in featured.slice(1, 4)"
+89	                :key="idx"
+90	                class="flex items-center gap-4 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg p-3 cursor-pointer transition"
+91	                @click="$inertia.visit(route('news.show', item.slug))"
+92	              >
+93	                <img :src="item.cover" alt="thumb" class="h-20 w-28 object-cover rounded-md" />
+94	                <div class="flex flex-col">
+95	                  <h3 class="font-semibold text-sm text-[#111827] line-clamp-2 hover:text-[#0b66ff] transition">
+96	                    {{ item.title }}
+97	                  </h3>
+98	                  <p class="text-xs text-[#4b5563] line-clamp-2 mt-1">{{ item.excerpt }}</p>
+99	                </div>
+100	              </div>
+101	            </div>
+102	          </div>
+103	        </section>
+104	
+105	        <!-- ⚽ TOP PLAYERS -->
+106	        <section v-if="sportOptions && sportOptions.length" class="mb-12">
+107	          <div class="flex items-center justify-between mb-3">
+108	            <h2 class="text-2xl font-extrabold tracking-tight">Top Players of the Month</h2>
+109	            <div class="flex items-center gap-2">
+110	              <label for="player-sport" class="text-sm text-[#6b7280]">Sport</label>
+111	              <select id="player-sport" v-model="selectedSportSlug" class="text-sm border border-gray-300 rounded-md px-2 py-1 bg-white">
+112	                <option v-for="s in sportOptions" :key="s.id" :value="s.slug">{{ s.name }}</option>
+113	              </select>
+114	              <Link :href="route('athletes.index', { sport: selectedSportSlug })" class="text-sm text-[#0b66ff] hover:underline">See all</Link>
+115	            </div>
+116	          </div>
+117	
+118	          <div v-if="selectedPlayersSection" class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+119	            <div
+120	              v-for="p in selectedPlayersSection.players"
+121	              :key="p.id"
+122	              class="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition p-5 text-center cursor-pointer"
+123	              @click="openPlayerModal(p)"
+124	            >
+125	              <img
+126	                :src="p.photo"
+127	                alt="player"
+128	                class="w-20 h-20 mx-auto rounded-full object-cover border-4 border-[#0b66ff]/10 mb-3"
+129	                @error="(e) => (e.target.src = '/images/default-logo.png')"
+130	              />
+131	              <h4 class="font-semibold">{{ p.name }}</h4>
+132	              <p class="text-xs text-[#6b7280]">{{ p.team || p.sport }}</p>
+133	              <div class="mt-2 text-[11px] text-[#0b66ff]">{{ p.month_points }} pts • {{ p.month_rebounds }} reb • {{ p.month_assists }} ast</div>
+134	            </div>
+135	          </div>
+136	        </section>
+137	
+138	        <!-- 📅 UPCOMING GAMES -->
+139	        <section v-if="gamesBySport && gamesBySport.length" class="mb-12">
+140	          <h2 class="text-2xl font-extrabold tracking-tight mb-4">Upcoming Games</h2>
+141	          <div v-for="section in gamesBySport" :key="section.sport.id" class="mb-8">
+142	            <div class="flex items-center justify-between mb-3">
+143	              <h3 class="text-xl font-bold">{{ section.sport.name }}</h3>
+144	              <Link href="/schedule" class="text-sm text-[#0b66ff] hover:underline">Full schedule</Link>
+145	            </div>
+146	            <div class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+147	              <div
+148	                v-for="g in section.games"
+149	                :key="g.id"
+150	                class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition text-center cursor-pointer"
+151	                @click="openGameModal(g)"
+152	              >
+153	                <div class="flex items-center justify-between mb-4">
+154	                  <span class="text-sm font-semibold text-[#0b66ff]">{{ g.sport }}</span>
+155	                  <span class="text-xs text-[#6b7280]">{{ g.date }}</span>
+156	                </div>
+157	
+158	                <div v-if="g.schools && g.schools.length > 2" class="flex flex-wrap items-center justify-center gap-3">
+159	                  <div v-for="s in g.schools" :key="s.id" class="flex items-center gap-2">
+160	                    <img :src="s.logo" class="w-8 h-8 object-contain" @error="(e) => (e.target.src = '/images/default-logo.png')" />
+161	                    <span class="text-xs font-medium">{{ s.name }}</span>
+162	                  </div>
+163	                </div>
+164	                <div v-else class="flex items-center justify-between">
+165	                  <div class="flex-1">
+166	                    <img :src="g.team_a_logo" class="w-10 h-10 mx-auto object-contain" />
+167	                    <p class="text-sm mt-1 font-semibold">{{ g.team_a }}</p>
+168	                  </div>
+169	                  <span class="mx-2 font-bold text-[#0b66ff]">VS</span>
+170	                  <div class="flex-1">
+171	                    <img :src="g.team_b_logo" class="w-10 h-10 mx-auto object-contain" />
+172	                    <p class="text-sm mt-1 font-semibold">{{ g.team_b }}</p>
+173	                  </div>
+174	                </div>
+175	
+176	                <p class="text-xs mt-3 text-[#6b7280]">{{ g.location }}</p>
+177	              </div>
+178	            </div>
+179	          </div>
+180	        </section>
+181	
+182	        <!-- 📰 MORE NEWS -->
+183	        <section>
+184	          <div class="flex items-center justify-between mb-6">
+185	            <h2 class="text-2xl font-extrabold tracking-tight">MORE NEWS</h2>
+186	            <Link href="/news" class="text-sm text-[#0b66ff] hover:underline">View all</Link>
+187	          </div>
+188	
+189	          <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+190	            <div
+191	              v-for="n in news"
+192	              :key="n.slug"
+193	              @click="$inertia.visit(route('news.show', n.slug))"
+194	              class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer"
+195	            >
+196	              <img
+197	                :src="n.cover"
+198	                alt="news"
+199	                class="h-48 w-full object-cover hover:scale-105 transition-transform duration-700"
+200	              />
+201	              <div class="p-4">
+202	                <h3 class="font-semibold text-lg text-[#111827] line-clamp-2 hover:text-[#0b66ff] transition-colors">
+203	                  {{ n.title }}
+204	                </h3>
+205	                <p class="text-sm text-[#4b5563] mt-1 line-clamp-3">{{ n.excerpt }}</p>
+206	                <div class="text-xs text-[#9ca3af] mt-3">{{ n.published }}</div>
+207	              </div>
+208	            </div>
+209	          </div>
+210	        </section>
+211	
+212	      </div>
+213	
+214	      <!-- Player Summary Modal -->
+215	      <div v-if="showPlayerModal" class="modal-overlay" @click.self="closePlayerModal">
+216	        <div class="modal-card">
+217	          <div class="modal-header">
+218	            <h3 class="text-lg font-semibold">Player Summary</h3>
+219	            <button @click="closePlayerModal" class="text-gray-500 hover:text-gray-700">✕</button>
+220	          </div>
+221	          <div class="modal-body" v-if="selectedPlayer">
+222	            <div class="flex items-center gap-4 mb-4">
+223	              <img :src="selectedPlayer.photo" class="w-16 h-16 rounded-full object-cover" />
+224	              <div>
+225	                <div class="text-xl font-bold">{{ selectedPlayer.name }}</div>
+226	                <div class="text-sm text-gray-600">{{ selectedPlayer.team || selectedPlayer.sport }}</div>
+227	              </div>
+228	            </div>
+229	            <div class="grid grid-cols-3 gap-3 text-center">
+230	              <div class="bg-[#0b66ff]/10 rounded-md p-3">
+231	                <div class="text-xs text-gray-600">Points (month)</div>
+232	                <div class="text-lg font-semibold text-[#0b66ff]">{{ selectedPlayer.month_points }}</div>
+233	              </div>
+234	              <div class="bg-[#0b66ff]/10 rounded-md p-3">
+235	                <div class="text-xs text-gray-600">Rebounds</div>
+236	                <div class="text-lg font-semibold text-[#0b66ff]">{{ selectedPlayer.month_rebounds }}</div>
+237	              </div>
+238	              <div class="bg-[#0b66ff]/10 rounded-md p-3">
+239	                <div class="text-xs text-gray-600">Assists</div>
+240	                <div class="text-lg font-semibold text-[#0b66ff]">{{ selectedPlayer.month_assists }}</div>
+241	              </div>
+242	            </div>
+243	          </div>
+244	        </div>
+245	      </div>
+246	
+247	      <!-- Game Summary Modal -->
+248	      <div v-if="showGameModal" class="modal-overlay" @click.self="closeGameModal">
+249	        <div class="modal-card">
+250	          <div class="modal-header">
+251	            <h3 class="text-lg font-semibold">Game Summary</h3>
+252	            <button @click="closeGameModal" class="text-gray-500 hover:text-gray-700">✕</button>
+253	          </div>
+254	          <div class="modal-body" v-if="selectedGame">
+255	            <div class="text-sm text-gray-600 mb-2">{{ selectedGame.sport }} • {{ selectedGame.date }}</div>
+256	            <div class="text-sm text-gray-600 mb-4">Venue: {{ selectedGame.location }}</div>
+257	            <div v-if="selectedGame.schools && selectedGame.schools.length" class="space-y-2">
+258	              <div class="text-xs font-semibold text-gray-700">Participating Schools</div>
+259	              <div class="flex flex-wrap gap-3 items-center">
+260	                <div v-for="s in selectedGame.schools" :key="s.id" class="flex items-center gap-2 bg-gray-50 rounded-md px-2 py-1">
+261	                  <img :src="s.logo" class="w-6 h-6 object-contain" />
+262	                  <span class="text-xs">{{ s.name }}</span>
+263	                </div>
+264	              </div>
+265	            </div>
+266	            <div v-else class="flex items-center justify-between mt-4">
+267	              <div class="flex-1 text-center">
+268	                <img :src="selectedGame.team_a_logo" class="w-12 h-12 mx-auto object-contain" />
+269	                <div class="font-medium mt-1">{{ selectedGame.team_a }}</div>
+270	              </div>
+271	              <div class="mx-2 font-bold text-[#0b66ff]">VS</div>
+272	              <div class="flex-1 text-center">
+273	                <img :src="selectedGame.team_b_logo" class="w-12 h-12 mx-auto object-contain" />
+274	                <div class="font-medium mt-1">{{ selectedGame.team_b }}</div>
+275	              </div>
+276	            </div>
+277	          </div>
+278	        </div>
+279	      </div>
+280	
+281	    </div>
+282	  </AppLayout>
+283	</template>
+284	
+285	<style scoped>
+286	.home-page {
+287	  background-color: #f9fafc;
+288	}
+289	.line-clamp-2 {
+290	  display: -webkit-box;
+291	  -webkit-line-clamp: 2;
+292	  -webkit-box-orient: vertical;
+293	  overflow: hidden;
+294	}
+295	.line-clamp-3 {
+296	  display: -webkit-box;
+297	  -webkit-line-clamp: 3;
+298	  -webkit-box-orient: vertical;
+299	  overflow: hidden;
+300	}
+301	/* Simple modal styles */
+302	.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 50; }
+303	.modal-card { background: #fff; border-radius: 0.75rem; width: 100%; max-width: 560px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+304	.modal-header { display:flex; align-items:center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid #e5e7eb; }
+305	.modal-body { padding: 1rem 1.25rem; }
+306	</style>

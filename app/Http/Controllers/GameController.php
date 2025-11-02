@@ -15,10 +15,19 @@ class GameController extends Controller
      */
     public function schedule()
     {
-        $games = Game::with(['homeTeam.school', 'awayTeam.school', 'sport', 'teams.school'])
-            ->orderBy('sport_id')
-            ->orderBy('starts_at', 'asc')
-            ->get();
+        // Show only upcoming 5 games per sport
+        $sports = Sport::orderBy('name')->get();
+        $games = collect();
+
+        foreach ($sports as $sport) {
+            $subset = Game::with(['homeTeam.school', 'awayTeam.school', 'sport', 'teams.school'])
+                ->where('sport_id', $sport->id)
+                ->where('starts_at', '>=', now())
+                ->orderBy('starts_at', 'asc')
+                ->take(5)
+                ->get();
+            $games = $games->concat($subset);
+        }
 
         return Inertia::render('Games/Schedule', [
             'games' => $games,

@@ -28,7 +28,7 @@ const filteredSports = computed(() => {
 // ==========================
 const imgSrc = (p) => {
   const path = p?.avatar_path
-  if (!path) return '/images/user.png'
+  if (!path) return '/images/default-logo.png'
   return path.startsWith('/storage') ? path : `/storage/${path}`
 }
 const fullName = (p) => [p?.first_name, p?.last_name].filter(Boolean).join(' ')

@@ -8,7 +8,8 @@ use App\Http\Controllers\{
     NewsController,
     DocumentController,
     LiveController,
-    AthleteController
+    AthleteController,
+    HomeController
 };
 use Inertia\Inertia;
 
@@ -18,7 +19,7 @@ use Inertia\Inertia;
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', [NewsController::class, 'home'])->name('home');
+Route::get('/', [HomeController::class, 'index'])->name('home');
 
 /*
 |--------------------------------------------------------------------------
@@ -83,8 +84,13 @@ Route::post('/documents', [DocumentController::class, 'store'])->name('documents
 | News
 |--------------------------------------------------------------------------
 */
-Route::get('/news', fn() => Inertia::render('News/Index'))->name('news.index');
-Route::get('/news/create', fn() => Inertia::render('News/Create'))->name('news.create');
+Route::get('/news', [NewsController::class, 'index'])->name('news.index');
+Route::get('/news/create', [NewsController::class, 'create'])->name('news.create');
+Route::post('/news', [NewsController::class, 'store'])->name('news.store');
+Route::get('/news/{news}', [NewsController::class, 'show'])->name('news.show');
+Route::get('/news/{news}/edit', [NewsController::class, 'edit'])->name('news.edit');
+Route::put('/news/{news}', [NewsController::class, 'update'])->name('news.update');
+Route::delete('/news/{news}', [NewsController::class, 'destroy'])->name('news.destroy');
 
 /*
 |--------------------------------------------------------------------------

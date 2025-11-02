@@ -1,425 +1,367 @@
-<script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useForm, usePage, Link } from '@inertiajs/vue3'
+﻿<script setup>
+import { Link } from '@inertiajs/vue3'
+import { ref, computed, watch } from 'vue'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
 const props = defineProps({
-  hero:   { type: Array, default: () => [] },
-  latest: { type: Array, default: () => [] },
+  featured: Array,         // 4 top stories (first is main)
+  playersBySport: Array,   // [{ sport, players: [] }]
+  gamesBySport: Array,     // [{ sport, games: [] }]
+  news: Array              // general news list
 })
 
-const page = usePage()
-const user = page.props?.auth?.user ?? null
+// Modal states
+const showPlayerModal = ref(false)
+const selectedPlayer = ref(null)
+const showGameModal = ref(false)
+const selectedGame = ref(null)
 
-const srcOf     = (item) => item?.cover_image_path ?? item?.cover ?? null
-const hasVideo  = (item) => !!(item?.embed_url || item?.video_url)
-const sportName = (item) => item?.sport?.name ?? null
+// Modal functions
+const openPlayerModal = (player) => {
+  selectedPlayer.value = player
+  showPlayerModal.value = true
+}
+const openGameModal = (game) => {
+  selectedGame.value = game
+  showGameModal.value = true
+}
+const closePlayerModal = () => { showPlayerModal.value = false; selectedPlayer.value = null }
+const closeGameModal = () => { showGameModal.value = false; selectedGame.value = null }
 
-// ---------- HERO SLIDESHOW ----------
-const slides = computed(() => props.hero ?? [])
-const active = ref(0)
-const intervalMs = 5000
-let timer = null
+// Top players dropdown
+const sportOptions = computed(() => (props.playersBySport || []).map(s => s.sport))
+const selectedSportSlug = ref('')
 
-function next() { if (!slides.value.length) return; active.value = (active.value + 1) % slides.value.length }
-function prev() { if (!slides.value.length) return; active.value = (active.value - 1 + slides.value.length) % slides.value.length }
-function goTo(i) { if (!slides.value.length) return; active.value = i % slides.value.length }
-function start() { stop(); if (slides.value.length > 1) timer = setInterval(next, intervalMs) }
-function stop() { if (timer) { clearInterval(timer); timer = null } }
-onMounted(start)
-onUnmounted(stop)
-
-const right1 = computed(() => slides.value[(active.value + 1) % (slides.value.length || 1)])
-const right2 = computed(() => slides.value[(active.value + 2) % (slides.value.length || 1)])
-
-// ---------- Highlight Uploader ----------
-const showUploader = ref(false)
-const form = useForm({ title: '', caption: '', file: null, sport_id: '' })
-function onPick(e){ const f = e.target.files?.[0]; if (f) form.file = f }
-function submit(){
-  form.post('/highlights', {
-    forceFormData: true,
-    onSuccess: () => {
-      showUploader.value = false
-      form.reset('title','caption','file','sport_id')
-    }
-  })
+function pickDefaultSlug(opts) {
+  if (!opts || !opts.length) return ''
+  const b = opts.find(o => (o?.slug || '').toLowerCase() === 'basketball')
+  return (b && b.slug) || opts[0].slug
 }
 
-// ---------- NEWS COMPOSER (FB-like) ----------
-const showComposer = ref(false)
-const previewUrl = ref(null)
-const newsForm = useForm({
-  title: '',
-  body: '',
-  cover: null, // image file maps to NewsController 'cover'
+// Initialize default sport
+selectedSportSlug.value = pickDefaultSlug(sportOptions.value)
+
+// Keep selection valid when options change
+watch(sportOptions, (opts) => {
+  if (!opts.length) { selectedSportSlug.value = ''; return }
+  if (!opts.some(o => o.slug === selectedSportSlug.value)) {
+    selectedSportSlug.value = pickDefaultSlug(opts)
+  }
 })
 
-function onCover(e){
-  const f = e.target.files?.[0]
-  newsForm.cover = f || null
-  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
-  previewUrl.value = f ? URL.createObjectURL(f) : null
-}
-function clearCover(){
-  newsForm.cover = null
-  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
-  previewUrl.value = null
-}
-function postNews(){
-  newsForm.post('/admin/news', {
-    forceFormData: true,
-    onSuccess: () => {
-      showComposer.value = false
-      clearCover()
-      newsForm.reset('title','body','cover')
-    }
-  })
-}
+const selectedPlayersSection = computed(() => {
+  const slug = selectedSportSlug.value
+  return (props.playersBySport || []).find(sec => sec?.sport?.slug === slug)
+})
+
+// Games dropdown
+const gameSportOptions = computed(() => (props.gamesBySport || []).map(s => s.sport))
+const selectedGamesSportSlug = ref('')
+selectedGamesSportSlug.value = pickDefaultSlug(gameSportOptions.value)
+watch(gameSportOptions, (opts) => {
+  if (!opts.length) { selectedGamesSportSlug.value = ''; return }
+  if (!opts.some(o => o.slug === selectedGamesSportSlug.value)) {
+    selectedGamesSportSlug.value = pickDefaultSlug(opts)
+  }
+})
+const selectedGamesSection = computed(() => {
+  const slug = selectedGamesSportSlug.value
+  return (props.gamesBySport || []).find(sec => sec?.sport?.slug === slug)
+})
 </script>
 
 <template>
-  <AppLayout>
-    <!-- ===== HERO (AUTO SLIDESHOW) ===== -->
-    <section class="max-w-[1200px] mx-auto px-4 mt-3">
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
-        <!-- Big left (slides) -->
-        <article
-          class="md:col-span-7 relative rounded-md overflow-hidden bg-gray-200"
-          @mouseenter="stop"
-          @mouseleave="start"
-        >
-          <div class="relative w-full h-[320px] md:h-[360px]">
-            <template v-if="slides.length">
+  <AppLayout title="Home">
+    <div class="home-page min-h-screen bg-[#f9fafc] text-[#111827] font-inter">
+      <div class="max-w-[1200px] mx-auto w-full px-4 py-8">
+
+        <!-- 🏆 HERO SECTION -->
+        <section class="mb-12">
+          <h2 class="text-2xl font-extrabold mb-6 tracking-tight">LATEST HIGHLIGHTS</h2>
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Main big article -->
+            <div
+              v-if="featured[0]"
+              class="relative col-span-2 cursor-pointer rounded-xl overflow-hidden shadow-lg group"
+              @click="$inertia.visit(route('news.show', featured[0].slug))"
+            >
+              <img
+                :src="featured[0].cover"
+                alt="main news"
+                class="h-[450px] w-full object-cover group-hover:scale-105 transition-transform duration-700"
+              />
+              <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-6 flex flex-col justify-end">
+                <h2 class="text-3xl font-bold text-white mb-2 group-hover:text-[#0b66ff] transition">
+                  {{ featured[0].title }}
+                </h2>
+                <p class="text-white/80 line-clamp-2">{{ featured[0].excerpt }}</p>
+                <span class="text-xs text-white/70 mt-2">{{ featured[0].published }}</span>
+              </div>
+            </div>
+
+            <!-- Side articles -->
+            <div class="flex flex-col gap-5">
               <div
-                v-for="(item, i) in slides"
-                :key="i"
-                class="absolute inset-0 transition-opacity duration-700"
-                :class="i === active ? 'opacity-100' : 'opacity-0 pointer-events-none'"
+                v-for="(item, idx) in featured.slice(1, 4)"
+                :key="idx"
+                class="flex items-center gap-4 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg p-3 cursor-pointer transition"
+                @click="$inertia.visit(route('news.show', item.slug))"
               >
-                <template v-if="hasVideo(item)">
-                  <iframe
-                    v-if="item.embed_url"
-                    :src="item.embed_url"
-                    class="w-full h-full"
-                    frameborder="0"
-                    allow="autoplay; encrypted-media; picture-in-picture"
-                    allowfullscreen
-                  />
-                  <video
-                    v-else
-                    :src="item.video_url"
-                    controls
-                    class="w-full h-full object-cover"
-                  />
-                </template>
-                <img
-                  v-else
-                  :src="srcOf(item)"
-                  class="w-full h-full object-cover"
-                  :alt="item.title"
-                />
-
-                <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
-                <div class="absolute top-3 left-3 flex items-center gap-2">
-                  <span class="text-xs font-semibold px-2 py-0.5 rounded bg-white/90 text-gray-900">
-                    {{ hasVideo(item) ? 'Highlight' : 'Featured' }}
-                  </span>
-                  <span v-if="sportName(item)" class="text-xs font-semibold px-2 py-0.5 rounded bg-black/50 text-white backdrop-blur">
-                    {{ sportName(item) }}
-                  </span>
-                  <span v-if="hasVideo(item) && item.duration" class="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-black/60 text-white">
-                    {{ item.duration }}
-                  </span>
-                </div>
-                <div v-if="hasVideo(item)" class="absolute inset-0 grid place-items-center pointer-events-none">
-                  <div class="h-14 w-14 rounded-full bg-white/90 grid place-items-center shadow">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                  </div>
-                </div>
-                <div class="absolute bottom-0 left-0 right-0 p-4">
-                  <a :href="`/news/${item.slug}`" class="block text-white text-xl md:text-2xl font-semibold">
+                <img :src="item.cover" alt="thumb" class="h-20 w-28 object-cover rounded-md" />
+                <div class="flex flex-col">
+                  <h3 class="font-semibold text-sm text-[#111827] line-clamp-2 hover:text-[#0b66ff] transition">
                     {{ item.title }}
-                  </a>
-                  <p v-if="item.caption" class="text-white/90 text-sm mt-1">{{ item.caption }}</p>
-                  <p v-else class="text-white/80 text-sm line-clamp-2">{{ item.excerpt }}</p>
+                  </h3>
+                  <p class="text-xs text-[#4b5563] line-clamp-2 mt-1">{{ item.excerpt }}</p>
                 </div>
               </div>
-            </template>
-            <div v-else class="w-full h-full flex items-center justify-center text-gray-500">
-              No featured post
+            </div>
+          </div>
+        </section>
+
+        <!-- ⚽ TOP PLAYERS -->
+        <section v-if="sportOptions && sportOptions.length" class="mb-12">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-2xl font-extrabold tracking-tight">Top Players of the Month</h2>
+            <div class="flex items-center gap-2">
+              <label for="player-sport" class="text-sm text-[#6b7280]">Sport</label>
+              <select id="player-sport" v-model="selectedSportSlug" class="text-sm border border-gray-300 rounded-md px-2 py-1 bg-white">
+                <option v-for="s in sportOptions" :key="s.id" :value="s.slug">{{ s.name }}</option>
+              </select>
+              <Link :href="route('athletes.index', { sport: selectedSportSlug })" class="text-sm text-[#0b66ff] hover:underline">See all</Link>
             </div>
           </div>
 
-          <!-- Controls -->
-          <button
-            type="button"
-            class="absolute left-2 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full bg-black/40 text-white grid place-items-center hover:bg-black/60"
-            @click="prev"
-            aria-label="Previous"
-          >‹</button>
-          <button
-            type="button"
-            class="absolute right-2 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full bg-black/40 text-white grid place-items-center hover:bg-black/60"
-            @click="next"
-            aria-label="Next"
-          >›</button>
-
-          <!-- Dots -->
-          <div class="absolute bottom-2 left-0 right-0 flex items-center justify-center gap-2">
-            <button
-              v-for="(s, i) in slides"
-              :key="'dot-'+i"
-              class="h-2.5 w-2.5 rounded-full transition"
-              :class="i === active ? 'bg-white' : 'bg-white/50 hover:bg-white/70'"
-              @click="goTo(i)"
-              aria-label="Go to slide"
-            />
-          </div>
-        </article>
-
-        <!-- Two right stacked -->
-        <div class="md:col-span-5 grid grid-rows-2 gap-3">
-          <article class="relative rounded-md overflow-hidden bg-gray-200">
-            <template v-if="right1">
-              <template v-if="hasVideo(right1)">
-                <iframe
-                  v-if="right1.embed_url"
-                  :src="right1.embed_url"
-                  class="w-full h-[160px] md:h-[176px]"
-                  frameborder="0"
-                  allow="autoplay; encrypted-media; picture-in-picture"
-                  allowfullscreen
-                />
-                <video
-                  v-else
-                  :src="right1.video_url"
-                  controls
-                  class="w-full h-[160px] md:h-[176px] object-cover"
-                />
-              </template>
+          <div v-if="selectedPlayersSection" class="flex gap-4 overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory pb-2">
+            <div
+              v-for="p in selectedPlayersSection.players"
+              :key="p.id"
+              class="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition p-5 text-center cursor-pointer shrink-0 w-[220px] snap-start"
+              @click="openPlayerModal(p)"
+            >
               <img
-                v-else
-                :src="srcOf(right1)"
-                class="w-full h-[160px] md:h-[176px] object-cover"
-                :alt="right1.title"
+                :src="p.photo"
+                alt="player"
+                class="w-20 h-20 mx-auto rounded-full object-cover border-4 border-[#0b66ff]/10 mb-3"
+                @error="(e) => (e.target.src = '/images/default-logo.png')"
               />
-              <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
-              <div class="absolute bottom-0 left-0 right-0 p-3">
-                <a :href="`/news/${right1.slug}`" class="block text-white font-semibold">
-                  {{ right1.title }}
-                </a>
-              </div>
-            </template>
-            <div v-else class="w-full h-[160px] md:h-[176px] flex items-center justify-center text-gray-500">Empty</div>
-          </article>
+              <h4 class="font-semibold">{{ p.name }}</h4>
+              <p class="text-xs text-[#6b7280]">{{ p.team || p.sport }}</p>
+              <div class="mt-2 text-[11px] text-[#0b66ff]">{{ p.month_points }} pts • {{ p.month_rebounds }} reb • {{ p.month_assists }} ast</div>
+            </div>
+          </div>
+        </section>
 
-          <article class="relative rounded-md overflow-hidden bg-gray-200">
-            <template v-if="right2">
-              <template v-if="hasVideo(right2)">
-                <iframe
-                  v-if="right2.embed_url"
-                  :src="right2.embed_url"
-                  class="w-full h-[160px] md:h-[176px]"
-                  frameborder="0"
-                  allow="autoplay; encrypted-media; picture-in-picture"
-                  allowfullscreen
-                />
-                <video
-                  v-else
-                  :src="right2.video_url"
-                  controls
-                  class="w-full h-[160px] md:h-[176px] object-cover"
-                />
-              </template>
+        <!-- 🏀 UPCOMING GAMES -->
+        <section v-if="gamesBySport && gamesBySport.length" class="mb-12">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-2xl font-extrabold tracking-tight">Upcoming Games</h2>
+            <div class="flex items-center gap-2">
+              <label for="game-sport" class="text-sm text-[#6b7280]">Sport</label>
+              <select id="game-sport" v-model="selectedGamesSportSlug" class="text-sm border border-gray-300 rounded-md px-2 py-1 bg-white">
+                <option v-for="s in gameSportOptions" :key="s.id" :value="s.slug">{{ s.name }}</option>
+              </select>
+              <Link href="/schedule" class="text-sm text-[#0b66ff] hover:underline">Full schedule</Link>
+            </div>
+          </div>
+
+          <div v-if="selectedGamesSection" class="flex gap-4 overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory pb-2">
+            <div
+              v-for="g in selectedGamesSection.games"
+              :key="g.id"
+              class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition text-center cursor-pointer shrink-0 w-[260px] snap-start"
+              @click="openGameModal(g)"
+            >
+              <div class="flex items-center justify-between mb-4">
+                <span class="text-sm font-semibold text-[#0b66ff]">{{ g.sport }}</span>
+                <span class="text-xs text-[#6b7280]">{{ g.date }}</span>
+              </div>
+
+              <div v-if="g.schools && g.schools.length > 2" class="flex flex-wrap items-center justify-center gap-3">
+                <div v-for="s in g.schools" :key="s.id" class="flex items-center gap-2">
+                  <img :src="s.logo" class="w-8 h-8 object-contain" @error="(e) => (e.target.src = '/images/default-logo.png')" />
+                  <span class="text-xs font-medium">{{ s.name }}</span>
+                </div>
+              </div>
+              <div v-else class="flex items-center justify-between">
+                <div class="flex-1">
+                  <img :src="g.team_a_logo" class="w-10 h-10 mx-auto object-contain" />
+                  <p class="text-sm mt-1 font-semibold">{{ g.team_a }}</p>
+                </div>
+                <span class="mx-2 font-bold text-[#0b66ff]">VS</span>
+                <div class="flex-1">
+                  <img :src="g.team_b_logo" class="w-10 h-10 mx-auto object-contain" />
+                  <p class="text-sm mt-1 font-semibold">{{ g.team_b }}</p>
+                </div>
+              </div>
+              <p class="text-xs mt-3 text-[#6b7280]">{{ g.location }}</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- 📰 MORE NEWS -->
+        <section>
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-extrabold tracking-tight">MORE NEWS</h2>
+            <Link href="/news" class="text-sm text-[#0b66ff] hover:underline">View all</Link>
+          </div>
+
+          <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div
+              v-for="n in news"
+              :key="n.slug"
+              @click="$inertia.visit(route('news.show', n.slug))"
+              class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer"
+            >
               <img
-                v-else
-                :src="srcOf(right2)"
-                class="w-full h-[160px] md:h-[176px] object-cover"
-                :alt="right2.title"
+                :src="n.cover"
+                alt="news"
+                class="h-48 w-full object-cover hover:scale-105 transition-transform duration-700"
               />
-              <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
-              <div class="absolute bottom-0 left-0 right-0 p-3">
-                <a :href="`/news/${right2.slug}`" class="block text-white font-semibold">
-                  {{ right2.title }}
-                </a>
+              <div class="p-4">
+                <h3 class="font-semibold text-lg text-[#111827] line-clamp-2 hover:text-[#0b66ff] transition-colors">
+                  {{ n.title }}
+                </h3>
+                <p class="text-sm text-[#4b5563] mt-1 line-clamp-3">{{ n.excerpt }}</p>
+                <div class="text-xs text-[#9ca3af] mt-3">{{ n.published }}</div>
               </div>
-            </template>
-            <div v-else class="w-full h-[160px] md:h-[176px] flex items-center justify-center text-gray-500">Empty</div>
-          </article>
-        </div>
+            </div>
+          </div>
+        </section>
+
       </div>
 
-      <!-- Add Highlight button -->
-      <div class="mt-4">
-        <button
-          type="button"
-          class="bg-[#0b66ff] hover:bg-[#084dcc] text-white font-semibold text-sm px-4 py-2 rounded-md shadow transition"
-          @click="showUploader = true"
-        >
-          + Add Highlight (photo or video)
-        </button>
-      </div>
-
-      <!-- Uploader Modal -->
-      <div v-if="showUploader" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-        <div class="bg-white w-full max-w-md rounded-lg shadow-lg overflow-hidden">
-          <div class="px-5 py-4 border-b"><div class="font-semibold">Add Highlight</div></div>
-          <form @submit.prevent="submit" class="p-5 space-y-4">
-            <div>
-              <label class="block text-sm font-medium mb-1">Title</label>
-              <input v-model="form.title" type="text" class="w-full border rounded px-3 py-2" placeholder="Highlight title" />
+      <!-- Player Modal -->
+      <div v-if="showPlayerModal" class="modal-overlay" @click.self="closePlayerModal">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3 class="text-lg font-semibold">Player Summary</h3>
+            <button @click="closePlayerModal" class="text-gray-500 hover:text-gray-700">✕</button>
+          </div>
+          <div class="modal-body" v-if="selectedPlayer">
+            <div class="flex items-center gap-4 mb-4">
+              <img :src="selectedPlayer.photo" class="w-16 h-16 rounded-full object-cover" />
+              <div>
+                <div class="text-xl font-bold">{{ selectedPlayer.name }}</div>
+                <div class="text-sm text-gray-600">{{ selectedPlayer.team || selectedPlayer.sport }}</div>
+              </div>
             </div>
-            <div>
-              <label class="block text-sm font-medium mb-1">Caption (optional)</label>
-              <input v-model="form.caption" type="text" class="w-full border rounded px-3 py-2" placeholder="Short caption" />
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-1">Sport (optional)</label>
-              <input v-model="form.sport_id" type="text" class="w-full border rounded px-3 py-2" placeholder="Sport ID (if any)" />
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-1">File (image or video)</label>
-              <input type="file" accept="image/*,video/*" @change="onPick" />
-              <p class="text-xs text-gray-500 mt-1">Supported: JPG/PNG or MP4/WebM, stored locally.</p>
-            </div>
-
-            <div class="flex items-center justify-end gap-3 pt-2">
-              <button type="button" class="px-3 py-2 rounded border" @click="showUploader=false">Cancel</button>
-              <button type="submit" class="px-4 py-2 rounded bg-[#0b66ff] hover:bg-[#084dcc] text-white font-semibold" :disabled="form.processing">
-                {{ form.processing ? 'Uploading…' : 'Save' }}
-              </button>
-            </div>
-
-            <div v-if="form.errors && Object.keys(form.errors).length" class="text-sm text-red-600">
-              <div v-for="(msg, key) in form.errors" :key="key">{{ msg }}</div>
-            </div>
-          </form>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===== LATEST SPORTS NEWS (composer moved inside) ===== -->
-    <section class="max-w-[1200px] mx-auto px-4 mt-6 mb-6">
-      <div class="text-center">
-        <h2 class="text-[22px] font-bold">Latest Sports News</h2>
-        <p class="text-sm text-[#6b7280] mt-1">Stay updated with the latest developments in Philippine sports</p>
-      </div>
-
-      <!-- Composer inside Latest section, above the grid -->
-      <div class="mt-5">
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-          <div class="flex items-start gap-3">
-            <img
-              v-if="user"
-              :src="user?.avatar_url ?? '/images/user.png'"
-              class="h-10 w-10 rounded-full object-cover ring-1 ring-gray-200"
-              alt="avatar"
-            />
-            <div class="flex-1">
-              <button
-                v-if="!showComposer"
-                class="w-full text-left bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full px-4 py-2"
-                @click="showComposer = true"
-              >
-                {{ user ? `What's on your mind, ${user.name.split(' ')[0]}?` : "Share an update..." }}
-              </button>
-
-              <form v-else @submit.prevent="postNews" class="space-y-3 mt-2">
-                <input
-                  v-model="newsForm.title"
-                  type="text"
-                  class="w-full border rounded-lg px-3 py-2"
-                  placeholder="Headline (e.g. Tigers clinch semis berth)"
-                />
-                <textarea
-                  v-model="newsForm.body"
-                  rows="4"
-                  class="w-full border rounded-lg px-3 py-2"
-                  placeholder="Write your story… (this becomes the article body)"
-                />
-                <div class="flex items-center justify-between">
-                  <label class="inline-flex items-center gap-2 text-sm font-medium cursor-pointer">
-                    <input type="file" accept="image/*" class="hidden" @change="onCover" />
-                    <span class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 rounded px-3 py-1.5">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14m18 0H3m18 0-5.5-6.5-4 4.5-3-3L3 19"/></svg>
-                      Add photo
-                    </span>
-                  </label>
-                  <div class="flex items-center gap-2">
-                    <button type="button" class="text-sm px-3 py-1.5 rounded border" @click="showComposer=false">Cancel</button>
-                    <button
-                      type="submit"
-                      class="text-sm px-4 py-1.5 rounded bg-[#0b66ff] hover:bg-[#084dcc] text-white font-semibold"
-                      :disabled="newsForm.processing"
-                    >
-                      {{ newsForm.processing ? 'Posting…' : 'Post' }}
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Image preview -->
-                <div v-if="previewUrl" class="relative mt-2">
-                  <img :src="previewUrl" class="max-h-64 rounded-lg object-cover border" alt="preview"/>
-                  <button type="button" class="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded" @click="clearCover">
-                    Remove
-                  </button>
-                </div>
-
-                <!-- Errors -->
-                <div v-if="newsForm.errors && Object.keys(newsForm.errors).length" class="text-sm text-red-600">
-                  <div v-for="(msg, key) in newsForm.errors" :key="key">{{ msg }}</div>
-                </div>
-              </form>
-
-              <div v-if="!user && !showComposer" class="text-xs text-gray-500 mt-2">
-                You may need to <Link href="/login" class="text-[#0b66ff] hover:underline">log in</Link> to post news.
+            <div class="grid grid-cols-3 gap-3 text-center">
+              <div class="bg-[#0b66ff]/10 rounded-md p-3">
+                <div class="text-xs text-gray-600">Points</div>
+                <div class="text-lg font-semibold text-[#0b66ff]">{{ selectedPlayer.month_points }}</div>
+              </div>
+              <div class="bg-[#0b66ff]/10 rounded-md p-3">
+                <div class="text-xs text-gray-600">Rebounds</div>
+                <div class="text-lg font-semibold text-[#0b66ff]">{{ selectedPlayer.month_rebounds }}</div>
+              </div>
+              <div class="bg-[#0b66ff]/10 rounded-md p-3">
+                <div class="text-xs text-gray-600">Assists</div>
+                <div class="text-lg font-semibold text-[#0b66ff]">{{ selectedPlayer.month_assists }}</div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Posts grid -->
-      <div class="mt-5 grid grid-cols-1 md:grid-cols-12 gap-4">
-        <div class="md:col-span-8">
-          <div
-            v-if="latest[0]"
-            class="rounded-lg p-5 min-h-[180px] bg-[linear-gradient(90deg,#252b6a_0%,#c4242a_100%)] text-white"
-          >
-            <a :href="`/news/${latest[0].slug}`" class="block text-lg md:text-xl font-semibold">
-              {{ latest[0].title }}
-            </a>
-            <p class="text-white/90 text-sm mt-1">{{ latest[0].excerpt }}</p>
-            <div class="text-white/80 text-xs mt-3">{{ latest[0].published ?? '' }}</div>
+      <!-- Game Modal -->
+      <div v-if="showGameModal" class="modal-overlay" @click.self="closeGameModal">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3 class="text-lg font-semibold">Game Summary</h3>
+            <button @click="closeGameModal" class="text-gray-500 hover:text-gray-700">✕</button>
           </div>
-          <div v-else class="rounded-lg min-h-[180px] flex items-center justify-center border border-dashed border-gray-300 bg-white text-gray-500">
-            No news yet
-          </div>
-        </div>
-
-        <div class="md:col-span-4 space-y-3">
-          <div
-            v-for="(p, idx) in latest.slice(1, 4)"
-            :key="p.id || idx"
-            class="bg-white rounded-lg p-3 shadow-sm border border-gray-200"
-          >
-            <a :href="`/news/${p.slug}`" class="font-semibold text-[15px] leading-snug hover:text-[#0b66ff]">
-              {{ p.title }}
-            </a>
-            <div class="text-xs text-[#6b7280] mt-1">{{ p.published ?? '' }}</div>
-          </div>
-
-          <!-- Fill placeholders to keep grid -->
-          <div
-            v-for="i in Math.max(0, 3 - (latest.length - 1))"
-            :key="'ph-'+i"
-            class="bg-white/60 rounded-lg p-3 border border-dashed border-gray-300 text-sm text-gray-500"
-          >
-            Empty
+          <div class="modal-body" v-if="selectedGame">
+            <div class="text-sm text-gray-600 mb-2">{{ selectedGame.sport }} · {{ selectedGame.date }}</div>
+            <div class="text-sm text-gray-600 mb-4">Venue: {{ selectedGame.location }}</div>
+            <div v-if="selectedGame.schools && selectedGame.schools.length" class="space-y-2">
+              <div class="text-xs font-semibold text-gray-700">Participating Schools</div>
+              <div class="flex flex-wrap gap-3 items-center">
+                <div v-for="s in selectedGame.schools" :key="s.id" class="flex items-center gap-2 bg-gray-50 rounded-md px-2 py-1">
+                  <img :src="s.logo" class="w-6 h-6 object-contain" />
+                  <span class="text-xs">{{ s.name }}</span>
+                </div>
+              </div>
+            </div>
+            <div v-else class="flex items-center justify-between mt-4">
+              <div class="flex-1 text-center">
+                <img :src="selectedGame.team_a_logo" class="w-12 h-12 mx-auto object-contain" />
+                <div class="font-medium mt-1">{{ selectedGame.team_a }}</div>
+              </div>
+              <div class="mx-2 font-bold text-[#0b66ff]">VS</div>
+              <div class="flex-1 text-center">
+                <img :src="selectedGame.team_b_logo" class="w-12 h-12 mx-auto object-contain" />
+                <div class="font-medium mt-1">{{ selectedGame.team_b }}</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </section>
+
+    </div>
   </AppLayout>
 </template>
+
+<style scoped>
+.home-page {
+  background-color: #f9fafc;
+}
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Simple modal styles */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal-card {
+  background: #fff;
+  border-radius: 0.75rem;
+  width: 100%;
+  max-width: 560px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-body {
+  padding: 1rem 1.25rem;
+}
+
+/* Hide horizontal scrollbar (WebKit + Firefox) */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+</style>
