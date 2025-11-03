@@ -1,6 +1,7 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { Link, useForm } from '@inertiajs/vue3'
+import { Link, useForm, usePage } from '@inertiajs/vue3'
+import { computed } from 'vue'
 
 const props = defineProps({
   post: {
@@ -10,6 +11,13 @@ const props = defineProps({
 })
 
 const delForm = useForm({})
+
+// role helpers
+const page = usePage()
+const isAdmin = computed(() => {
+  const roles = page.props.auth?.user?.roles || []
+  return Array.isArray(roles) ? roles.includes('admin') || roles.includes('super-admin') : false
+})
 
 function destroyPost() {
   if (confirm('Delete this news article? This cannot be undone.')) {
@@ -28,7 +36,7 @@ function destroyPost() {
             <h1 class="text-4xl font-bold mb-2">{{ props.post.title }}</h1>
             <p class="text-gray-500 text-sm mb-4">{{ props.post.published }}</p>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2" v-if="isAdmin">
             <Link :href="route('news.edit', props.post.slug)" class="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700">Edit</Link>
             <button @click="destroyPost" class="px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
           </div>

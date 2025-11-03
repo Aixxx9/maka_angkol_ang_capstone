@@ -1,5 +1,6 @@
 <script setup>
-import { Link, useForm } from '@inertiajs/vue3'
+import { Link, useForm, usePage } from '@inertiajs/vue3'
+import { computed } from 'vue'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
 const props = defineProps({
@@ -8,6 +9,13 @@ const props = defineProps({
 })
 
 const destroyForm = useForm({})
+
+// Auth/role helpers
+const page = usePage()
+const isAdmin = computed(() => {
+  const roles = page.props.auth?.user?.roles || []
+  return Array.isArray(roles) ? roles.includes('admin') || roles.includes('super-admin') : false
+})
 
 function destroyPost(slug) {
   if (confirm('Delete this news? This action cannot be undone.')) {
@@ -24,6 +32,7 @@ function destroyPost(slug) {
         <div class="flex items-center justify-between mb-8">
           <h1 class="text-4xl font-extrabold tracking-tight">Latest News</h1>
           <Link
+            v-if="isAdmin"
             :href="route('news.create')"
             class="bg-[#0b66ff] text-white px-5 py-2.5 rounded-lg shadow hover:bg-[#084dcc] transition"
           >
@@ -48,7 +57,7 @@ function destroyPost(slug) {
               class="h-[450px] w-full object-cover group-hover:scale-105 transition-transform duration-700"
             />
             <!-- Edit/Delete overlay -->
-            <div class="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition">
+            <div v-if="isAdmin" class="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition">
               <Link
                 :href="route('news.edit', latest[0].slug)"
                 @click.stop
@@ -96,7 +105,7 @@ function destroyPost(slug) {
                 <span class="text-[11px] text-[#9ca3af] mt-1">{{ n.published }}</span>
               </div>
               <!-- Inline actions -->
-              <div class="absolute top-2 right-2 hidden group-hover:flex gap-2">
+              <div v-if="isAdmin" class="absolute top-2 right-2 hidden group-hover:flex gap-2">
                 <Link :href="route('news.edit', n.slug)" @click.stop class="px-2 py-1 text-xs rounded bg-white border">Edit</Link>
                 <button @click.stop="destroyPost(n.slug)" class="px-2 py-1 text-xs rounded bg-red-600 text-white">Delete</button>
               </div>
@@ -121,7 +130,7 @@ function destroyPost(slug) {
               class="h-48 w-full object-cover hover:scale-110 transition-transform duration-700"
             />
             <!-- Card actions -->
-            <div class="absolute top-3 right-3 flex gap-2 opacity-0 hover:opacity-100">
+            <div v-if="isAdmin" class="absolute top-3 right-3 flex gap-2 opacity-0 hover:opacity-100">
               <Link :href="route('news.edit', n.slug)" @click.stop class="px-2 py-1 text-xs rounded bg-white border">Edit</Link>
               <button @click.stop="destroyPost(n.slug)" class="px-2 py-1 text-xs rounded bg-red-600 text-white">Delete</button>
             </div>

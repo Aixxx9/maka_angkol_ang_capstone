@@ -12,6 +12,7 @@
           </div>
 
           <button
+            v-if="isAdmin"
             @click="showAddModal = true"
             class="mt-4 sm:mt-0 bg-[#0b66ff] hover:bg-[#084dcc] px-5 py-2.5 rounded-lg text-white font-semibold tracking-wide transition-all duration-200"
           >
@@ -74,8 +75,8 @@
               <!-- Action Buttons -->
               <div class="absolute top-2 right-2 hidden group-hover:flex gap-2 z-10">
                 <button @click.stop="downloadVideo(v)" class="px-2 py-1 text-xs rounded bg-white border opacity-80 hover:opacity-100">Download</button>
-                <button @click.stop="openEdit(v)" class="px-2 py-1 text-xs rounded bg-white border opacity-80 hover:opacity-100">Edit</button>
-                <button @click.stop="destroyVideo(v.id)" class="px-2 py-1 text-xs rounded bg-red-600 text-white opacity-80 hover:opacity-100">Delete</button>
+                <button v-if="isAdmin" @click.stop="openEdit(v)" class="px-2 py-1 text-xs rounded bg-white border opacity-80 hover:opacity-100">Edit</button>
+                <button v-if="isAdmin" @click.stop="destroyVideo(v.id)" class="px-2 py-1 text-xs rounded bg-red-600 text-white opacity-80 hover:opacity-100">Delete</button>
               </div>
             </div>
 
@@ -104,6 +105,7 @@
             Add your first sports highlight below.
           </p>
           <button
+            v-if="isAdmin"
             @click="showAddModal = true"
             class="bg-[#0b66ff] hover:bg-[#084dcc] text-white font-semibold px-5 py-2.5 rounded-lg transition-all duration-200"
           >
@@ -120,8 +122,8 @@
           <h3 class="font-semibold text-lg">{{ currentVideo?.title || 'Highlight' }}</h3>
           <div class="flex items-center gap-3">
             <button v-if="currentVideo" @click="downloadVideo(currentVideo)" class="text-sm px-3 py-1 border rounded hover:bg-gray-50">Download</button>
-            <button v-if="currentVideo" @click="openEdit(currentVideo)" class="text-sm px-3 py-1 border rounded hover:bg-gray-50">Edit</button>
-            <button v-if="currentVideo" @click="destroyVideo(currentVideo.id)" class="text-sm px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
+            <button v-if="currentVideo && isAdmin" @click="openEdit(currentVideo)" class="text-sm px-3 py-1 border rounded hover:bg-gray-50">Edit</button>
+            <button v-if="currentVideo && isAdmin" @click="destroyVideo(currentVideo.id)" class="text-sm px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
             <button class="text-gray-500 hover:text-gray-700 text-2xl leading-none" @click="closeWatch">×</button>
           </div>
         </div>
@@ -169,7 +171,7 @@
     </div>
 
     <!-- ADD VIDEO MODAL -->
-    <div v-if="showAddModal" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div v-if="showAddModal && isAdmin" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
       <div class="bg-white text-[#111827] rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
         <div class="flex justify-between items-center px-5 py-4 border-b border-gray-200">
           <h3 class="font-semibold text-lg">Add Video Highlight</h3>
@@ -208,7 +210,7 @@
     </div>
 
     <!-- SMALLER EDIT VIDEO MODAL -->
-    <div v-if="showEditModal" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div v-if="showEditModal && isAdmin" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
       <div class="bg-white text-[#111827] rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
         <div class="flex justify-between items-center px-5 py-4 border-b border-gray-200">
           <h3 class="font-semibold text-lg">Edit Video Highlight</h3>
@@ -253,6 +255,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
 const videos = ref([])
@@ -274,6 +277,13 @@ const editVideoFile = ref(null)
 const editThumbFile = ref(null)
 
 const upNext = computed(() => videos.value.filter(v => v.id !== currentVideo.value?.id))
+
+// role helpers
+const page = usePage()
+const isAdmin = computed(() => {
+  const roles = page.props.auth?.user?.roles || []
+  return Array.isArray(roles) ? roles.includes('admin') || roles.includes('super-admin') : false
+})
 
 onMounted(async () => {
   const saved = localStorage.getItem('videos')

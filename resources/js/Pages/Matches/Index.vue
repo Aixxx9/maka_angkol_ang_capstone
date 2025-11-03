@@ -1,6 +1,6 @@
 <script setup>
-import { ref } from 'vue'
-import { Link, router } from '@inertiajs/vue3'
+import { ref, computed } from 'vue'
+import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
 const props = defineProps({
@@ -123,6 +123,13 @@ function submitFinalize(){
     }
   })
 }
+
+// role helpers
+const page = usePage()
+const isAdmin = computed(() => {
+  const roles = page.props.auth?.user?.roles || []
+  return Array.isArray(roles) ? roles.includes('admin') || roles.includes('super-admin') : false
+})
 </script>
 
 <template>
@@ -131,7 +138,7 @@ function submitFinalize(){
       <div class="flex items-center justify-between mb-5">
         <h1 class="text-3xl font-extrabold tracking-tight">MATCHES</h1>
         <div class="flex gap-2">
-          <Link href="/games/create" class="bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-semibold text-sm px-4 py-2 rounded-md shadow">+ Add Schedule</Link>
+          <Link v-if="isAdmin" href="/games/create" class="bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-semibold text-sm px-4 py-2 rounded-md shadow">+ Add Schedule</Link>
         </div>
       </div>
 
@@ -187,7 +194,7 @@ function submitFinalize(){
         <div v-if="schedTab==='upcoming'">
           <div v-if="!upcoming.length" class="text-center text-sm text-neutral-500 py-10">No upcoming matches.</div>
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <div v-for="g in upcoming" :key="g.id" class="bg-white rounded-md shadow-sm border overflow-hidden cursor-pointer" @click="openFinalize(g)">
+            <div v-for="g in upcoming" :key="g.id" class="bg-white rounded-md shadow-sm border overflow-hidden" :class="isAdmin ? 'cursor-pointer' : ''" @click="isAdmin && openFinalize(g)">
               <div class="flex items-center justify-between text-[13px] font-semibold tracking-wide px-4 py-2 bg-neutral-100">
                 <div class="text-neutral-800">{{ fmtDate(g.starts_at) }}</div>
                 <div class="text-neutral-600">{{ fmtTime(g.starts_at) }}</div>
@@ -274,7 +281,7 @@ function submitFinalize(){
       
 
       <!-- Finalize Modal -->
-      <div v-if="showFinalize" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div v-if="showFinalize && isAdmin" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
         <div class="bg-white rounded-md shadow-lg w-full max-w-md p-4">
           <div class="flex items-center justify-between mb-3">
             <div class="text-lg font-bold">Finalize Game</div>

@@ -1,9 +1,13 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue'
 import { Link, usePage, useForm, router } from '@inertiajs/vue3'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 const { props } = usePage()
+const isAdmin = computed(() => {
+  const roles = props?.auth?.user?.roles || []
+  return Array.isArray(roles) ? roles.includes('admin') || roles.includes('super-admin') : false
+})
 const school = ref(props.school)
 const achievements = props.achievements || []
 
@@ -101,7 +105,7 @@ function deleteSchool() {
               Established: {{ school.created_at ? new Date(school.created_at).toLocaleDateString() : '—' }}
             </p>
 
-            <div class="mt-6 flex gap-3">
+            <div class="mt-6 flex gap-3" v-if="isAdmin">
               <button
                 type="button"
                 @click="showEditModal = true"
@@ -164,7 +168,7 @@ function deleteSchool() {
     <!-- ===================== MODAL ===================== -->
     <transition name="fade">
       <div
-        v-if="showEditModal"
+        v-if="showEditModal && isAdmin"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
       >
         <div class="bg-white w-full max-w-md rounded-lg shadow-lg overflow-hidden">
@@ -226,3 +230,4 @@ function deleteSchool() {
   opacity: 0;
 }
 </style>
+

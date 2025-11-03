@@ -1,8 +1,13 @@
 <script setup>
 import { Link, usePage, useForm, router } from '@inertiajs/vue3'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 const page = usePage()
+const isAuthenticated = computed(() => !!page.props.auth?.user)
+const isAdmin = computed(() => {
+  const roles = page.props.auth?.user?.roles || []
+  return Array.isArray(roles) ? roles.includes('admin') || roles.includes('super-admin') : false
+})
 const schools = page.props.schools ?? []
 
 // ✅ Normalize logo paths (avoid /schools/schools/... issue)
@@ -65,6 +70,7 @@ function submitSchool() {
 
     <!-- Add School Button -->
     <button
+      v-if="isAdmin"
       type="button"
       class="h-12 w-12 flex items-center justify-center rounded-full bg-white text-[#0b66ff] ring-2 ring-[#a8c7f3] hover:bg-[#0b66ff] hover:text-white transition shrink-0"
       title="Add School"
@@ -108,6 +114,7 @@ function submitSchool() {
       <div class="w-full px-4 py-2 relative flex items-center">
         <!-- Burger Button -->
         <button
+          v-if="isAdmin"
           class="mr-4 text-[#354b7d] hover:text-[#0b66ff] transition"
           @click="showSidebar = !showSidebar"
         >
@@ -150,7 +157,7 @@ function submitSchool() {
     <!-- Sidebar -->
     <transition name="slide">
       <div
-        v-if="showSidebar"
+        v-if="showSidebar && isAdmin"
         class="fixed inset-y-0 left-0 z-50 w-64 bg-white/85 shadow-2xl border-r border-[#d7e5ff] backdrop-blur-md flex flex-col"
       >
         <div class="flex items-center justify-between px-4 py-3 border-b">
@@ -164,6 +171,13 @@ function submitSchool() {
           <Link href="/matches" class="hover:text-[#0b66ff]" @click="showSidebar = false">Matches</Link>
           <Link href="/news" class="hover:text-[#0b66ff]" @click="showSidebar = false">News</Link>
           <Link href="/videos" class="hover:text-[#0b66ff]" @click="showSidebar = false">Videos</Link>
+          <button
+            type="button"
+            class="mt-4 text-left text-red-600 hover:text-red-700"
+            @click="router.post('/logout'); showSidebar = false"
+          >
+            Logout
+          </button>
         </nav>
       </div>
     </transition>
@@ -205,6 +219,11 @@ function submitSchool() {
             <a href="#" class="h-8 w-8 grid place-items-center rounded-full bg-[#111111]">in</a>
           </div>
         </div>
+        <div class="mt-4 text-center">
+          <Link v-if="!isAuthenticated" href="/login" class="text-sm text-[#a3b3ff] hover:text-white underline">
+            Admin Login
+          </Link>
+        </div>
 
         <div class="mt-8 grid grid-cols-2 sm:grid-cols-6 gap-3 text-sm">
           <div class="font-semibold col-span-2 sm:col-span-1 text-white">Sports</div>
@@ -223,7 +242,7 @@ function submitSchool() {
 
     <!-- ADD SCHOOL MODAL -->
     <div
-      v-if="showAddSchool"
+      v-if="showAddSchool && isAdmin"
       class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50"
     >
       <div class="bg-white w-full max-w-md rounded-lg shadow-lg overflow-hidden">

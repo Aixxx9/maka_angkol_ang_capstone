@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { Link, router } from '@inertiajs/vue3'
+import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
 const props = defineProps({
@@ -66,6 +66,13 @@ const participants = computed(() => {
   const g = selectedGame.value
   return g ? getParticipants(g) : []
 })
+
+// role helpers
+const page = usePage()
+const isAdmin = computed(() => {
+  const roles = page.props.auth?.user?.roles || []
+  return Array.isArray(roles) ? roles.includes('admin') || roles.includes('super-admin') : false
+})
 </script>
 
 <template>
@@ -75,6 +82,7 @@ const participants = computed(() => {
       <div class="flex items-center justify-between mb-5">
         <h1 class="text-3xl font-extrabold tracking-tight">NEXT MATCHES</h1>
         <Link
+          v-if="isAdmin"
           href="/games/create"
           class="bg-[#0b66ff] hover:bg-[#084dcc] text-white font-semibold text-sm px-4 py-2 rounded-md shadow transition"
         >
@@ -180,12 +188,14 @@ const participants = computed(() => {
 
           <div class="mt-6 flex justify-center gap-4">
             <button
+              v-if="isAdmin"
               @click="editGame(selectedGame.id)"
               class="px-4 py-2 rounded-md bg-[#0b66ff]/70 text-white font-semibold hover:bg-[#0b66ff]/100 transition shadow-sm hover:shadow-md"
             >
               Edit
             </button>
             <button
+              v-if="isAdmin"
               @click="deleteGame(selectedGame.id)"
               class="px-4 py-2 rounded-md bg-red-600/70 text-white font-semibold hover:bg-red-600/100 transition shadow-sm hover:shadow-md"
             >

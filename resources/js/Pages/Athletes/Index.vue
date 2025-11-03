@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
-import { Link, router, useForm } from '@inertiajs/vue3'
+import { Link, router, useForm, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Chart from 'chart.js/auto'
 
@@ -129,6 +129,13 @@ const avgPoints = computed(() => {
 const topScorer = computed(() =>
   [...filteredPlayers.value].sort((a, b) => (b.ppg ?? 0) - (a.ppg ?? 0))[0] || null
 )
+
+// role helpers
+const page = usePage()
+const isAdmin = computed(() => {
+  const roles = page.props.auth?.user?.roles || []
+  return Array.isArray(roles) ? roles.includes('admin') || roles.includes('super-admin') : false
+})
 
 // ==========================
 // EDIT + DELETE MODALS
@@ -416,6 +423,7 @@ const summaryCards = computed(() => {
         <h1 class="text-3xl font-bold tracking-tight text-neutral-900">Athletes</h1>
         <div class="ml-auto" />
         <Link
+          v-if="isAdmin"
           href="/athletes/create"
           class="inline-flex items-center gap-2 rounded-lg bg-[#0b66ff] px-4 py-2 text-white text-sm font-semibold shadow-sm hover:bg-[#0856d6]">
           <span class="text-base leading-none">＋</span>
@@ -517,7 +525,7 @@ const summaryCards = computed(() => {
               </template>
             </div>
 
-            <div class="flex justify-center gap-4 pb-4">
+            <div v-if="isAdmin" class="flex justify-center gap-4 pb-4">
               <button @click.stop="openEditModal(p)" class="text-xs text-blue-600 hover:underline opacity-80 hover:opacity-100">Edit</button>
               <button @click.stop="openDeleteModal(p)" class="text-xs text-red-600 hover:underline opacity-80 hover:opacity-100">Delete</button>
             </div>
@@ -546,7 +554,7 @@ const summaryCards = computed(() => {
             </div>
           </div>
 
-          <div class="bg-neutral-50 rounded-xl border p-5 shadow-inner">
+          <div v-if="isAdmin" class="bg-neutral-50 rounded-xl border p-5 shadow-inner">
             <h3 class="font-semibold text-neutral-800 mb-3">Add / Update Game Record</h3>
             <form @submit.prevent="saveGameRecord" class="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <template v-for="(f, idx) in ((selectedPlayer?.sport?.stat_fields && selectedPlayer.sport.stat_fields.length) ? selectedPlayer.sport.stat_fields : [
@@ -589,6 +597,7 @@ const summaryCards = computed(() => {
             <div class="flex items-center justify-between mb-3">
               <h3 class="font-semibold text-neutral-800">Recent Game Records</h3>
               <button
+                v-if="isAdmin"
                 type="button"
                 class="text-xs px-3 py-1 rounded border border-neutral-300 bg-white hover:bg-neutral-100 disabled:opacity-50"
                 :disabled="recentRecords.length === 0"

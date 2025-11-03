@@ -1,10 +1,17 @@
 <script setup>
 import { ref, computed, nextTick } from 'vue'
-import { Link, router } from '@inertiajs/vue3'
+import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
 const props = defineProps({
   sports: { type: Array, default: () => [] },
+})
+
+// Auth/role helpers
+const page = usePage()
+const isAdmin = computed(() => {
+  const roles = page.props.auth?.user?.roles || []
+  return Array.isArray(roles) ? roles.includes('admin') || roles.includes('super-admin') : false
 })
 
 // filters and sorting
@@ -100,6 +107,7 @@ function deleteSport(id) {
         <!-- Add Sport Button -->
         <div class="mt-6 flex justify-end">
           <Link
+            v-if="isAdmin"
             href="/sports/create"
             class="inline-flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold px-4 py-2.5 rounded-lg shadow-sm transition"
           >
@@ -180,7 +188,7 @@ function deleteSport(id) {
             <span class="text-xs text-neutral-500 mt-1 block">Type: {{ selectedSport.type }}</span>
           </div>
 
-          <div class="mt-6 flex justify-center gap-3">
+          <div v-if="isAdmin" class="mt-6 flex justify-center gap-3">
             <Link
               :href="`/sports/${selectedSport.id}/edit`"
               class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium transition"
