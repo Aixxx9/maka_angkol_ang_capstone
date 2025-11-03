@@ -11,10 +11,18 @@ class Game extends Model
 
     protected $fillable = [
         'sport_id',
+        'competition_id',
+        'round',
+        'bracket_pos',
         'home_team_id',
         'away_team_id',
         'starts_at',
         'venue',
+        // Allow mass assignment for finalize and embeds
+        'status',
+        'home_score',
+        'away_score',
+        'live_embed_url',
     ];
 
     public function sport()
@@ -34,6 +42,23 @@ class Game extends Model
 
     public function teams()
     {
-        return $this->belongsToMany(Team::class, 'game_team')->withTimestamps()->withPivot('position');
+        return $this->belongsToMany(Team::class, 'game_team')
+            ->withTimestamps()
+            ->withPivot('position', 'score');
+    }
+
+    public function events()
+    {
+        return $this->hasMany(GameEvent::class);
+    }
+
+    public function highlights()
+    {
+        return $this->hasMany(Highlight::class);
+    }
+
+    public function competition()
+    {
+        return $this->belongsTo(Competition::class);
     }
 }

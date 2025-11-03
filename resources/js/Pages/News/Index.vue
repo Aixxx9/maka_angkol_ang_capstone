@@ -33,50 +33,50 @@ function destroyPost(slug) {
 
         <!-- FEATURED LAYOUT (2-column NBA style) -->
         <div
-          v-if="latest.length"
+          v-if="hero.length"
           class="news-featured grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12"
         >
           <!-- LEFT: MAIN FEATURED NEWS -->
           <div
-            v-if="latest[0]"
-            @click="$inertia.visit(route('news.show', latest[0].slug))"
+            v-if="hero[0]"
+            @click="$inertia.visit(route('news.show', hero[0].slug))"
             class="news-main relative cursor-pointer rounded-xl overflow-hidden shadow-lg group col-span-2"
           >
             <img
-              :src="latest[0].cover"
+              :src="hero[0].cover"
               alt="featured"
               class="h-[450px] w-full object-cover group-hover:scale-105 transition-transform duration-700"
             />
             <!-- Edit/Delete overlay -->
             <div class="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition">
               <Link
-                :href="route('news.edit', latest[0].slug)"
+                :href="route('news.edit', hero[0].slug)"
                 @click.stop
                 class="px-3 py-1.5 text-sm rounded-md bg-white/90 hover:bg-white text-[#111827] shadow"
               >Edit</Link>
               <button
-                @click.stop="destroyPost(latest[0].slug)"
+                @click.stop="destroyPost(hero[0].slug)"
                 class="px-3 py-1.5 text-sm rounded-md bg-red-600/90 hover:bg-red-600 text-white shadow"
               >Delete</button>
             </div>
             <div
               class="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/50 to-transparent p-8"
             >
-              <span class="text-sm text-white/80 uppercase">{{ latest[0].category }}</span>
+              <span class="text-sm text-white/80 uppercase">{{ hero[0].category }}</span>
               <h2
                 class="text-3xl md:text-4xl font-bold text-white mb-2 group-hover:text-[#0b66ff] transition"
               >
-                {{ latest[0].title }}
+                {{ hero[0].title }}
               </h2>
-              <p class="text-white/80 text-base line-clamp-2">{{ latest[0].excerpt }}</p>
-              <span class="text-xs text-white/60 mt-2">{{ latest[0].published }}</span>
+              <p class="text-white/80 text-base line-clamp-2">{{ hero[0].excerpt }}</p>
+              <span class="text-xs text-white/60 mt-2">{{ hero[0].published }}</span>
             </div>
           </div>
 
           <!-- RIGHT: SMALL SIDE ARTICLES -->
           <div class="news-side flex flex-col gap-5">
             <div
-              v-for="n in latest.slice(1, 4)"
+              v-for="n in hero.slice(1, 3)"
               :key="n.slug"
               @click="$inertia.visit(route('news.show', n.slug))"
               class="news-card relative flex items-center gap-4 cursor-pointer group border-b border-gray-200 pb-3 hover:bg-gray-50 p-2 rounded-md transition"
@@ -106,11 +106,11 @@ function destroyPost(slug) {
 
         <!-- REST OF ARTICLES -->
         <div
-          v-if="latest.length > 4"
+          v-if="latest.length"
           class="news-grid grid gap-8 sm:grid-cols-2 lg:grid-cols-3"
         >
           <div
-            v-for="n in latest.slice(4)"
+            v-for="n in latest"
             :key="n.slug"
             @click="$inertia.visit(route('news.show', n.slug))"
             class="relative bg-white border border-neutral-200 hover:border-[#0b66ff]/40 rounded-lg shadow-sm hover:shadow-lg transition overflow-hidden cursor-pointer"
@@ -141,7 +141,7 @@ function destroyPost(slug) {
         </div>
 
         <!-- EMPTY STATE -->
-        <div v-else class="text-center text-gray-500 py-20">
+        <div v-if="(!hero || !hero.length) && (!latest || !latest.length)" class="text-center text-gray-500 py-20">
           No news yet. Click
           <span class="text-[#0b66ff] font-semibold">"Create News"</span> to add one.
         </div>

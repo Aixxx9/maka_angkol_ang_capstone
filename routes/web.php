@@ -6,6 +6,9 @@ use App\Http\Controllers\{
     SportController,
     GameController,
     NewsController,
+    MatchesController,
+    StandingsController,
+    BracketController,
     DocumentController,
     LiveController,
     AthleteController,
@@ -62,6 +65,24 @@ Route::get('/games/{game}', [GameController::class, 'show'])
 Route::get('/games/{game}/edit', [GameController::class, 'edit'])->name('games.edit');
 Route::put('/games/{game}', [GameController::class, 'update'])->name('games.update');
 Route::delete('/games/{game}', [GameController::class, 'destroy'])->name('games.destroy');
+Route::put('/games/{game}/finalize', [GameController::class, 'finalize'])->name('games.finalize');
+
+/*
+|--------------------------------------------------------------------------
+| Matches / Standings
+|--------------------------------------------------------------------------
+*/
+Route::get('/matches', [MatchesController::class, 'index'])->name('matches.index');
+Route::get('/standings', [StandingsController::class, 'index'])->name('standings.index');
+
+/*
+|--------------------------------------------------------------------------
+| Brackets
+|--------------------------------------------------------------------------
+*/
+Route::get('/brackets/create', [BracketController::class, 'create'])->name('brackets.create');
+Route::post('/brackets', [BracketController::class, 'store'])->name('brackets.store');
+Route::get('/brackets/{competition}/builder', [BracketController::class, 'builder'])->name('brackets.builder');
 
 /*
 |--------------------------------------------------------------------------

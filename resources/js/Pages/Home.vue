@@ -119,6 +119,7 @@ const selectedGamesSection = computed(() => {
           </div>
         </section>
 
+
         <!-- ⚽ TOP PLAYERS -->
         <section v-if="sportOptions && sportOptions.length" class="mb-12">
           <div class="flex items-center justify-between mb-3">

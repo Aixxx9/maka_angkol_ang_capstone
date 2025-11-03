@@ -214,4 +214,87 @@ class GameController extends Controller
         $game->delete();
         return redirect()->route('schedule')->with('success', 'Game deleted successfully!');
     }
+
+    /**
+     * FINALIZE: set final scores and auto-advance bracket winners
+     */
+    public function finalize(Request $req, Game $game)
+    {
+        $data = $req->validate([
+            'home_score' => 'required|integer|min:0',
+            'away_score' => 'required|integer|min:0',
+            'participant_scores' => 'nullable|array',
+            'participant_scores.*' => 'integer|min:0',
+        ]);
+
+        $game->update(array_merge($data, ['status' => 'final']));
+
+        // Save per-participant scores on the pivot (including home/away and any extra participants)
+        $scores = $req->input('participant_scores', []);
+        if (is_array($scores) && !empty($scores)) {
+            foreach ($scores as $teamId => $score) {
+                $tid = (int) $teamId; $val = max(0, (int) $score);
+                try {
+                    $game->teams()->updateExistingPivot($tid, ['score' => $val]);
+                } catch (\Throwable $e) {
+                    // Ignore if team is not attached to this game
+                }
+            }
+        }
+
+        // Bracket auto-advance (single-elimination)
+        if ($game->competition_id && $game->round && $game->bracket_pos) {
+            $compId = (int) $game->competition_id;
+            $round = (int) $game->round;
+            $pos = (int) $game->bracket_pos;
+
+            // Find sibling game in the same round
+            $siblingPos = $pos % 2 === 1 ? $pos + 1 : $pos - 1;
+            $sibling = Game::where('competition_id', $compId)
+                ->where('round', $round)
+                ->where('bracket_pos', $siblingPos)
+                ->first();
+
+            // Only advance if sibling exists and is also final
+            if ($sibling && $sibling->status === 'final') {
+                $oddPos = min($pos, $siblingPos); // odd position in the pair
+                $evenPos = max($pos, $siblingPos);
+
+                $winnerTeamId = function (Game $g) {
+                    if ($g->home_score > $g->away_score) return (int) $g->home_team_id;
+                    if ($g->away_score > $g->home_score) return (int) $g->away_team_id;
+                    return null; // tie ignored
+                };
+
+                $winnerOdd = $winnerTeamId($pos % 2 === 1 ? $game : $sibling);
+                $winnerEven = $winnerTeamId($pos % 2 === 0 ? $game : $sibling);
+
+                if ($winnerOdd && $winnerEven) {
+                    $nextRound = $round + 1;
+                    $nextPos = (int) ceil($oddPos / 2);
+
+                    $next = Game::where('competition_id', $compId)
+                        ->where('round', $nextRound)
+                        ->where('bracket_pos', $nextPos)
+                        ->first();
+
+                    if (!$next) {
+                        // Create next game when both winners are known
+                        Game::create([
+                            'sport_id' => $game->sport_id,
+                            'competition_id' => $compId,
+                            'round' => $nextRound,
+                            'bracket_pos' => $nextPos,
+                            'home_team_id' => $winnerOdd,    // odd -> home
+                            'away_team_id' => $winnerEven,   // even -> away
+                            'starts_at' => now()->addDay()->setTime(18, 0, 0),
+                            'status' => 'scheduled',
+                        ]);
+                    }
+                }
+            }
+        }
+
+        return back()->with('success', 'Game finalized.');
+    }
 }
