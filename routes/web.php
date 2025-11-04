@@ -6,6 +6,7 @@ use App\Http\Controllers\{
     SchoolController,
     SportController,
     GameController,
+    LiveScoreController,
     NewsController,
     MatchesController,
     StandingsController,
@@ -95,6 +96,13 @@ Route::get('/videos', fn() => Inertia::render('Videos/Index'))->name('videos.ind
 
 /*
 |--------------------------------------------------------------------------
+| Public API: Live scoreboard (polling fallback)
+|--------------------------------------------------------------------------
+*/
+Route::get('/api/scoreboard', [LiveScoreController::class, 'current']);
+
+/*
+|--------------------------------------------------------------------------
 | Athletes
 |--------------------------------------------------------------------------
 */
@@ -153,6 +161,13 @@ Route::middleware(['auth', EnsureRole::class . ':admin,super-admin'])->group(fun
     Route::get('/live/create', [LiveController::class, 'create'])->name('live.create');
     Route::post('/live', [LiveController::class, 'store'])->name('live.store');
     Route::put('/live/{game}/stop', [LiveController::class, 'stop'])->name('live.stop');
+
+    // Live Scoring (manual scoreboard)
+    Route::get('/live-scoring', [LiveScoreController::class, 'index'])->name('live-scoring.index');
+    Route::post('/live-scoring/start', [LiveScoreController::class, 'start'])->name('live-scoring.start');
+    Route::post('/live-scoring/score', [LiveScoreController::class, 'score'])->name('live-scoring.score');
+    Route::post('/live-scoring/reset', [LiveScoreController::class, 'reset'])->name('live-scoring.reset');
+    Route::post('/live-scoring/hide', [LiveScoreController::class, 'hide'])->name('live-scoring.hide');
 });
 
 require __DIR__.'/auth.php';

@@ -169,6 +169,7 @@ function submitSchool() {
           <Link href="/athletes" class="hover:text-[#0b66ff]" @click="showSidebar = false">Athletes</Link>
           <Link href="/games/create" class="hover:text-[#0b66ff]" @click="showSidebar = false">Create Schedule</Link>
           <Link href="/live/create" class="hover:text-[#0b66ff]" @click="showSidebar = false">Go Live</Link>
+          <Link href="/live-scoring" class="hover:text-[#0b66ff]" @click="showSidebar = false">Live Scoring</Link>
           <Link href="/matches" class="hover:text-[#0b66ff]" @click="showSidebar = false">Matches</Link>
           <Link href="/news" class="hover:text-[#0b66ff]" @click="showSidebar = false">News</Link>
           <Link href="/videos" class="hover:text-[#0b66ff]" @click="showSidebar = false">Videos</Link>

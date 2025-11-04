@@ -69,7 +69,7 @@ const gameOptions = computed(() => {
         <Link href="/" class="text-sm text-[#0b66ff] hover:underline">← Back Home</Link>
       </div>
 
-      <div class="bg-white border border-neutral-200 rounded-2xl p-6 space-y-6">
+      <div class="bg-white border border-neutral-200 rounded-2xl p-6 space-y-6 shadow-sm">
         <div v-if="current" class="p-4 rounded-lg bg-red-50 border border-red-200">
           <div class="flex items-center justify-between">
             <div>

@@ -2,6 +2,7 @@
 import { Link, usePage } from '@inertiajs/vue3'
 import { ref, computed, watch, onMounted } from 'vue'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import ScoreboardWidget from '@/Components/ScoreboardWidget.vue'
 
 const props = defineProps({
   featured: Array,         // 4 top stories (first is main)
@@ -90,6 +91,8 @@ function closeLivePip() {
   <AppLayout title="Home">
     <div class="home-page min-h-screen bg-[#f9fafc] text-[#111827] font-inter">
       <div class="max-w-[1200px] mx-auto w-full px-4 py-8">
+
+        <ScoreboardWidget />
 
         <!-- 🏆 HERO SECTION -->
         <section class="mb-12">
