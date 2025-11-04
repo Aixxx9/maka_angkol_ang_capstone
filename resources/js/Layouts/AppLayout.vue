@@ -168,6 +168,7 @@ function submitSchool() {
           <Link href="/sports/create" class="hover:text-[#0b66ff]" @click="showSidebar = false">Add Sports</Link>
           <Link href="/athletes" class="hover:text-[#0b66ff]" @click="showSidebar = false">Athletes</Link>
           <Link href="/games/create" class="hover:text-[#0b66ff]" @click="showSidebar = false">Create Schedule</Link>
+          <Link href="/live/create" class="hover:text-[#0b66ff]" @click="showSidebar = false">Go Live</Link>
           <Link href="/matches" class="hover:text-[#0b66ff]" @click="showSidebar = false">Matches</Link>
           <Link href="/news" class="hover:text-[#0b66ff]" @click="showSidebar = false">News</Link>
           <Link href="/videos" class="hover:text-[#0b66ff]" @click="showSidebar = false">Videos</Link>
@@ -185,7 +186,7 @@ function submitSchool() {
     <!-- LIVE BUTTON -->
     <div class="max-w-[1200px] mx-auto w-full px-4 mt-2">
       <Link
-        :href="$page.props.live?.url ?? ($page.props.live?.game_id ? `/live/${$page.props.live.game_id}` : '/schedule')"
+        :href="($page.props.live && $page.props.live.url) ? $page.props.live.url : (isAdmin ? '/live/create' : '/schedule')"
         class="inline-flex items-center gap-2 bg-[#e60000] hover:bg-[#c40000] text-white text-[14px] font-bold px-3 py-1 rounded-[4px] shadow transition"
         title="Watch Live"
       >

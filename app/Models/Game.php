@@ -23,6 +23,7 @@ class Game extends Model
         'home_score',
         'away_score',
         'live_embed_url',
+        'live_title',
     ];
 
     public function sport()

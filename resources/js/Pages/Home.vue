@@ -1,6 +1,6 @@
 ﻿<script setup>
-import { Link } from '@inertiajs/vue3'
-import { ref, computed, watch } from 'vue'
+import { Link, usePage } from '@inertiajs/vue3'
+import { ref, computed, watch, onMounted } from 'vue'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
 const props = defineProps({
@@ -68,6 +68,22 @@ const selectedGamesSection = computed(() => {
   const slug = selectedGamesSportSlug.value
   return (props.gamesBySport || []).find(sec => sec?.sport?.slug === slug)
 })
+
+// Live PiP overlay
+const page = usePage()
+const live = computed(() => page.props.live)
+const showLivePip = ref(true)
+onMounted(() => {
+  const id = live.value?.game_id
+  if (!id) return
+  const dismissed = localStorage.getItem('live_pip_closed_'+id)
+  showLivePip.value = dismissed ? false : true
+})
+function closeLivePip() {
+  const id = live.value?.game_id
+  if (id) localStorage.setItem('live_pip_closed_'+id, '1')
+  showLivePip.value = false
+}
 </script>
 
 <template>
@@ -296,6 +312,26 @@ const selectedGamesSection = computed(() => {
               </div>
             </div>
           </div>
+        </div>
+    </div>
+
+      <!-- Live PiP overlay -->
+      <div v-if="live && live.embed && showLivePip" class="fixed bottom-4 right-4 z-50 w-[320px] bg-black/90 rounded-lg overflow-hidden shadow-xl">
+        <div class="flex items-center justify-between px-3 py-2 bg-red-600 text-white">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="relative flex h-2.5 w-2.5">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60"></span>
+              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+            </span>
+            <span class="font-semibold truncate">{{ live.title || 'Live Now' }}</span>
+          </div>
+          <button @click="closeLivePip" class="text-white/80 hover:text-white">✕</button>
+        </div>
+        <div class="aspect-video bg-black">
+          <iframe :src="live.embed" class="w-full h-full" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+        </div>
+        <div class="flex">
+          <Link :href="live.url" class="flex-1 text-center py-2 bg-[#0b66ff] hover:bg-[#084dcc] text-white text-sm font-semibold">Watch</Link>
         </div>
       </div>
 

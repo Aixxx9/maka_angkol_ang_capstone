@@ -66,7 +66,9 @@ Route::get('/standings', [StandingsController::class, 'index'])->name('standings
 | Live
 |--------------------------------------------------------------------------
 */
-Route::get('/live/{game}', [LiveController::class, 'show'])->name('live.show');
+Route::get('/live/{game}', [LiveController::class, 'show'])
+    ->whereNumber('game')
+    ->name('live.show');
 
 /*
 |--------------------------------------------------------------------------
@@ -103,7 +105,7 @@ Route::get('/athletes', [AthleteController::class, 'index'])->name('athletes.ind
 | Admin-only routes (auth + role:admin)
 |--------------------------------------------------------------------------
 */
-Route::middleware(['auth', EnsureRole::class . ':admin'])->group(function () {
+Route::middleware(['auth', EnsureRole::class . ':admin,super-admin'])->group(function () {
     // Schools (manage)
     Route::post('/schools', [SchoolController::class, 'store'])->name('schools.store');
     Route::get('/schools/{slug}/edit', [SchoolController::class, 'edit'])->name('schools.edit');
@@ -124,6 +126,7 @@ Route::middleware(['auth', EnsureRole::class . ':admin'])->group(function () {
     Route::put('/games/{game}', [GameController::class, 'update'])->name('games.update');
     Route::delete('/games/{game}', [GameController::class, 'destroy'])->name('games.destroy');
     Route::put('/games/{game}/finalize', [GameController::class, 'finalize'])->name('games.finalize');
+    Route::post('/games/{game}/events', [GameController::class, 'addEvent'])->name('games.events.add');
 
     // Brackets (manage)
     Route::get('/brackets/create', [BracketController::class, 'create'])->name('brackets.create');
@@ -145,6 +148,11 @@ Route::middleware(['auth', EnsureRole::class . ':admin'])->group(function () {
     Route::post('/athletes', [AthleteController::class, 'store'])->name('athletes.store');
     Route::post('/athletes/{athlete}/game-stats', [AthleteController::class, 'storeGameStat'])->name('athletes.stats.store');
     Route::delete('/athletes/{athlete}/game-stats/{stat}', [AthleteController::class, 'destroyGameStat'])->name('athletes.stats.destroy');
+
+    // Live (manage)
+    Route::get('/live/create', [LiveController::class, 'create'])->name('live.create');
+    Route::post('/live', [LiveController::class, 'store'])->name('live.store');
+    Route::put('/live/{game}/stop', [LiveController::class, 'stop'])->name('live.stop');
 });
 
 require __DIR__.'/auth.php';

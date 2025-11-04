@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use App\Models\School;
+use App\Models\Game;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -44,11 +45,17 @@ class HandleInertiaRequests extends Middleware
             // ✅ NEW: Global list of schools for your header strip
             'schools' => fn() => School::select('id', 'name', 'slug', 'logo_path')->get(),
 
-            // ✅ (Optional) You can also preload a “live” prop if you use a live banner
-            'live' => fn() => [
-                'url' => null,
-                'game_id' => null,
-            ],
+            // ✅ Global live banner/overlay (if any). Returns null when no active live.
+            'live' => function () {
+                $g = Game::where('status', 'live')->whereNotNull('live_embed_url')->latest('updated_at')->first();
+                if (!$g) return null;
+                return [
+                    'game_id' => $g->id,
+                    'title'   => $g->live_title ?: 'Live Now',
+                    'embed'   => $g->live_embed_url,
+                    'url'     => route('live.show', ['game' => $g->id]),
+                ];
+            },
         ]);
     }
 }
