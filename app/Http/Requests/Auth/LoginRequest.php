@@ -49,6 +49,15 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        // Block disabled users
+        $user = Auth::user();
+        if ($user && (bool) $user->getAttribute('is_disabled')) {
+            Auth::logout();
+            throw ValidationException::withMessages([
+                'email' => 'Your account has been disabled.',
+            ]);
+        }
+
         RateLimiter::clear($this->throttleKey());
     }
 

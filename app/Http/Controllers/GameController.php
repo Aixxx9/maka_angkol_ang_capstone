@@ -51,9 +51,17 @@ class GameController extends Controller
      */
     public function create()
     {
+        $user = request()->user();
+        $sportsQ = Sport::query()->select('id','name');
+        $teamsQ = Team::with(['school','sport']);
+        if ($user && $user->hasRole('mod')) {
+            $allowed = $user->sports()->pluck('sports.id');
+            $sportsQ->whereIn('id', $allowed);
+            $teamsQ->whereIn('sport_id', $allowed);
+        }
         return Inertia::render('Games/Create', [
-            'teams'  => Team::with(['school', 'sport'])->get(),
-            'sports' => Sport::select('id', 'name')->get(),
+            'teams'  => $teamsQ->get(),
+            'sports' => $sportsQ->get(),
         ]);
     }
 
@@ -71,6 +79,22 @@ class GameController extends Controller
             'participants' => 'nullable|array',
             'participants.*' => 'integer|exists:teams,id',
         ]);
+
+        // Mods can only create schedules within their assigned sports
+        $user = $req->user();
+        if ($user && $user->hasRole('mod')) {
+            $allowed = $user->sports()->where('sports.id', $data['sport_id'])->exists();
+            abort_unless($allowed, 403);
+            // Ensure chosen teams belong to the chosen sport
+            foreach (['home_team_id','away_team_id'] as $k) {
+                $ok = Team::where('id', $data[$k])->where('sport_id', $data['sport_id'])->exists();
+                abort_unless($ok, 422, 'Team must match selected sport');
+            }
+            foreach (array_filter($req->input('participants', [])) as $pid) {
+                $ok = Team::where('id', (int)$pid)->where('sport_id', $data['sport_id'])->exists();
+                abort_unless($ok, 422, 'Participant team must match selected sport');
+            }
+        }
 
         $data['status'] = 'scheduled';
 
@@ -100,6 +124,12 @@ class GameController extends Controller
      */
     public function addEvent(Request $req, Game $game)
     {
+        // Mods can only add events for games within their assigned sports
+        $user = $req->user();
+        if ($user && $user->hasRole('mod')) {
+            $allowed = $user->sports()->where('sports.id', $game->sport_id)->exists();
+            abort_unless($allowed, 403);
+        }
         $payload = $req->validate([
             'team'  => 'required|in:home,away',
             'type'  => 'required|string',

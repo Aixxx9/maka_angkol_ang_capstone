@@ -22,6 +22,9 @@ class AthleteController extends Controller
             ->withAvg('gameStats as apg', 'assists')
             ->withAvg('gameStats as fg', 'fg_percent');
 
+        // Only show approved athletes publicly
+        $query->where('status', 'approved');
+
         if ($sportSlug) {
             $query->whereHas('sport', fn($q) => $q->where('slug', $sportSlug));
         }
@@ -52,13 +55,12 @@ class AthleteController extends Controller
     }
 
     public function create()
-{
-    return inertia('Athletes/Create', [
-        'sports' => \App\Models\Sport::select('id', 'name')->get(),
-        // Use a different key to avoid shadowing shared 'schools' used in AppLayout
-        'schoolOptions' => \App\Models\School::select('id', 'name')->get(),
-    ]);
-}
+    {
+        return inertia('Athletes/Create', [
+            'sports' => \App\Models\Sport::select('id', 'name')->get(),
+            'schoolOptions' => \App\Models\School::select('id', 'name')->get(),
+        ]);
+    }
 
 
     public function store(Request $request)
@@ -81,6 +83,15 @@ class AthleteController extends Controller
             $avatarPath = $request->file('avatar')->store('athletes', 'public');
         }
 
+        $status = 'approved';
+        // Mods submit pending entries subject to approval
+        if ($request->user() && $request->user()->hasRole('mod')) {
+            // Mod must be assigned to the sport
+            $allowed = $request->user()->sports()->where('sports.id', $validated['sport_id'])->exists();
+            abort_unless($allowed, 403);
+            $status = 'pending';
+        }
+
         Athlete::create([
             'first_name' => $validated['first_name'],
             'last_name'  => $validated['last_name'],
@@ -90,7 +101,19 @@ class AthleteController extends Controller
             'sport_id'   => $validated['sport_id'],
             'school_id'  => $validated['school_id'],
             'avatar_path'=> $avatarPath,
+            'status'     => $status,
+            'submitted_by' => $request->user()?->id,
         ]);
+
+        // Notify admins of pending submission
+        if ($status === 'pending') {
+            try {
+                \App\Models\User::role(['admin','super-admin'])->each(function($admin){
+                    $admin->notify(new \App\Notifications\PendingAthleteSubmitted());
+                });
+            } catch (\Throwable $e) {}
+            return redirect()->route('athletes.index')->with('success', 'Submitted for approval.');
+        }
 
         return redirect()->route('athletes.index')->with('success', 'Player added successfully!');
     }
@@ -125,6 +148,12 @@ public function show(Athlete $athlete)
 
     public function storeGameStat(Request $request, Athlete $athlete)
     {
+        // Mods can only add stats for athletes in their assigned sports
+        $user = $request->user();
+        if ($user && $user->hasRole('mod')) {
+            $allowed = $user->sports()->where('sports.id', $athlete->sport_id)->exists();
+            abort_unless($allowed, 403);
+        }
         // Accept dynamic stats via sport config, but keep backwards compatibility
         $baseValidated = $request->validate([
             'game_date' => 'required|date',
@@ -191,6 +220,12 @@ public function show(Athlete $athlete)
 
 public function destroyGameStat(Athlete $athlete, $stat)
 {
+    // Mods can only delete stats for athletes in their assigned sports
+    $user = request()->user();
+    if ($user && $user->hasRole('mod')) {
+        $allowed = $user->sports()->where('sports.id', $athlete->sport_id)->exists();
+        abort_unless($allowed, 403);
+    }
     $record = PlayerGameStat::where('athlete_id', $athlete->id)->where('id', $stat)->firstOrFail();
     $record->delete();
     return back()->with('success', 'Recent game record cleared.');

@@ -13,6 +13,7 @@ class RoleSeeder extends Seeder
         // Ensure our two roles exist
         $adminRole = Role::firstOrCreate(['name' => 'admin']);
         $userRole  = Role::firstOrCreate(['name' => 'user']);
+        $modRole   = Role::firstOrCreate(['name' => 'mod']);
 
         // Backward compatibility: keep any existing super-admin as also an admin
         $superAdmin = Role::where('name', 'super-admin')->first();

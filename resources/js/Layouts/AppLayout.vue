@@ -8,6 +8,10 @@ const isAdmin = computed(() => {
   const roles = page.props.auth?.user?.roles || []
   return Array.isArray(roles) ? roles.includes('admin') || roles.includes('super-admin') : false
 })
+const isMod = computed(() => {
+  const roles = page.props.auth?.user?.roles || []
+  return Array.isArray(roles) ? roles.includes('mod') : false
+})
 const schools = page.props.schools ?? []
 
 // ✅ Normalize logo paths (avoid /schools/schools/... issue)
@@ -114,7 +118,7 @@ function submitSchool() {
       <div class="w-full px-4 py-2 relative flex items-center">
         <!-- Burger Button -->
         <button
-          v-if="isAdmin"
+          v-if="isAdmin || isMod"
           class="mr-4 text-[#354b7d] hover:text-[#0b66ff] transition"
           @click="showSidebar = !showSidebar"
         >
@@ -157,7 +161,7 @@ function submitSchool() {
     <!-- Sidebar -->
     <transition name="slide">
       <div
-        v-if="showSidebar && isAdmin"
+        v-if="showSidebar && (isAdmin || isMod)"
         class="fixed inset-y-0 left-0 z-50 w-64 bg-white/85 shadow-2xl border-r border-[#d7e5ff] backdrop-blur-md flex flex-col"
       >
         <div class="flex items-center justify-between px-4 py-3 border-b">
@@ -165,14 +169,30 @@ function submitSchool() {
           <button @click="showSidebar = false" class="text-gray-500 hover:text-gray-700">✕</button>
         </div>
         <nav class="flex flex-col p-4 space-y-3 text-[#354b7d] font-semibold">
-          <Link href="/sports/create" class="hover:text-[#0b66ff]" @click="showSidebar = false">Add Sports</Link>
-          <Link href="/athletes" class="hover:text-[#0b66ff]" @click="showSidebar = false">Athletes</Link>
-          <Link href="/games/create" class="hover:text-[#0b66ff]" @click="showSidebar = false">Create Schedule</Link>
-          <Link href="/live/create" class="hover:text-[#0b66ff]" @click="showSidebar = false">Go Live</Link>
-          <Link href="/live-scoring" class="hover:text-[#0b66ff]" @click="showSidebar = false">Live Scoring</Link>
-          <Link href="/matches" class="hover:text-[#0b66ff]" @click="showSidebar = false">Matches</Link>
-          <Link href="/news" class="hover:text-[#0b66ff]" @click="showSidebar = false">News</Link>
-          <Link href="/videos" class="hover:text-[#0b66ff]" @click="showSidebar = false">Videos</Link>
+          <template v-if="isAdmin">
+            <Link href="/sports/create" class="hover:text-[#0b66ff]" @click="showSidebar = false">Add Sports</Link>
+            <Link href="/athletes" class="hover:text-[#0b66ff]" @click="showSidebar = false">Athletes</Link>
+            <Link href="/games/create" class="hover:text-[#0b66ff]" @click="showSidebar = false">Create Schedule</Link>
+            <Link href="/live/create" class="hover:text-[#0b66ff]" @click="showSidebar = false">Go Live</Link>
+            <Link href="/live-scoring" class="hover:text-[#0b66ff]" @click="showSidebar = false">Live Scoring</Link>
+            <Link href="/matches" class="hover:text-[#0b66ff]" @click="showSidebar = false">Matches</Link>
+            <Link href="/news" class="hover:text-[#0b66ff]" @click="showSidebar = false">News</Link>
+            <Link href="/videos" class="hover:text-[#0b66ff]" @click="showSidebar = false">Videos</Link>
+            <div class="h-px bg-[#d7e5ff] my-2"></div>
+            <Link href="/admin/accounts" class="hover:text-[#0b66ff]" @click="showSidebar = false">Accounts</Link>
+            <Link href="/admin/athletes/pending" class="hover:text-[#0b66ff] flex items-center gap-2" @click="showSidebar = false">
+              Athlete Approvals
+              <span v-if="$page.props.notifications?.unread" class="ml-auto inline-flex items-center justify-center min-w-[1.5rem] h-6 px-2 rounded-full bg-red-600 text-white text-xs">
+                {{ $page.props.notifications.unread }}
+              </span>
+            </Link>
+          </template>
+          <template v-else>
+            <Link href="/athletes" class="hover:text-[#0b66ff]" @click="showSidebar = false">Athletes</Link>
+            <Link href="/athletes/create" class="hover:text-[#0b66ff]" @click="showSidebar = false">Add Player</Link>
+            <Link href="/games/create" class="hover:text-[#0b66ff]" @click="showSidebar = false">Create Schedule</Link>
+            <Link href="/live-scoring" class="hover:text-[#0b66ff]" @click="showSidebar = false">Live Scoring</Link>
+          </template>
           <button
             type="button"
             class="mt-4 text-left text-red-600 hover:text-red-700"

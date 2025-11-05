@@ -39,8 +39,14 @@ class HandleInertiaRequests extends Middleware
                     'id'    => $request->user()->id,
                     'name'  => $request->user()->name,
                     'roles' => $request->user()->getRoleNames(),
+                    'sports' => $request->user()->relationLoaded('sports')
+                        ? $request->user()->sports->map->only(['id','name'])
+                        : $request->user()->sports()->get(['id','name']),
                 ] : null,
             ],
+            'notifications' => fn() => $request->user() && $request->user()->hasAnyRole(['admin','super-admin'])
+                ? [ 'unread' => $request->user()->unreadNotifications()->count() ]
+                : null,
 
             // ✅ NEW: Global list of schools for your header strip
             'schools' => fn() => School::select('id', 'name', 'slug', 'logo_path')->get(),

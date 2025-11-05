@@ -13,14 +13,25 @@ class LiveScoreController extends Controller
     /**
      * Admin: Manual live scoring screen
      */
-    public function index()
+    public function index(Request $request)
     {
+        $user = $request->user();
         $schools = School::orderBy('name')->get(['id','name','slug','logo_path']);
-        $sports = Sport::orderBy('name')->get(['id','name','slug']);
-        $active = Scoreboard::with(['leftSchool','rightSchool','sport'])
+
+        $sportQuery = Sport::orderBy('name');
+        if ($user && $user->hasRole('mod')) {
+            $allowedIds = $user->sports()->pluck('sports.id');
+            $sportQuery->whereIn('id', $allowedIds);
+        }
+        $sports = $sportQuery->get(['id','name','slug']);
+
+        $activeQuery = Scoreboard::with(['leftSchool','rightSchool','sport'])
             ->where('is_active', true)
-            ->latest('updated_at')
-            ->first();
+            ->latest('updated_at');
+        if ($user && $user->hasRole('mod')) {
+            $activeQuery->whereIn('sport_id', $user->sports()->pluck('sports.id'));
+        }
+        $active = $activeQuery->first();
 
         $payload = $active ? $this->format($active) : null;
 
@@ -42,6 +53,12 @@ class LiveScoreController extends Controller
             'sport_id' => 'required|exists:sports,id',
             'match_label' => 'nullable|string|max:100',
         ]);
+        // Restrict mods to assigned sports
+        $user = $request->user();
+        if ($user && $user->hasRole('mod')) {
+            $allowed = $user->sports()->where('sports.id', $data['sport_id'])->exists();
+            abort_unless($allowed, 403);
+        }
 
         $board = Scoreboard::where('is_active', true)->latest('updated_at')->first();
 
@@ -81,7 +98,12 @@ class LiveScoreController extends Controller
             'delta' => 'required|integer',
         ]);
 
-        $board = Scoreboard::where('is_active', true)->latest('updated_at')->firstOrFail();
+        $query = Scoreboard::where('is_active', true)->latest('updated_at');
+        $user = $request->user();
+        if ($user && $user->hasRole('mod')) {
+            $query->whereIn('sport_id', $user->sports()->pluck('sports.id'));
+        }
+        $board = $query->firstOrFail();
 
         if ($payload['side'] === 'left') {
             $board->left_score = max(0, (int)$board->left_score + (int)$payload['delta']);
@@ -96,21 +118,30 @@ class LiveScoreController extends Controller
         return response()->json(['ok' => true, 'scoreboard' => $this->format($board)]);
     }
 
-    public function reset()
+    public function reset(Request $request)
     {
-        $board = Scoreboard::where('is_active', true)->latest('updated_at')->firstOrFail();
+        $query = Scoreboard::where('is_active', true)->latest('updated_at');
+        $user = $request->user();
+        if ($user && $user->hasRole('mod')) {
+            $query->whereIn('sport_id', $user->sports()->pluck('sports.id'));
+        }
+        $board = $query->firstOrFail();
         $board->update(['left_score' => 0, 'right_score' => 0]);
         $board->load(['leftSchool','rightSchool','sport']);
         broadcast(new ScoreboardUpdated($board))->toOthers();
         return back();
     }
 
-    public function hide()
+    public function hide(Request $request)
     {
         // Toggle visibility of the latest scoreboard (active or not)
-        $board = Scoreboard::with(['leftSchool','rightSchool','sport'])
-            ->orderByDesc('updated_at')
-            ->first();
+        $query = Scoreboard::with(['leftSchool','rightSchool','sport'])
+            ->orderByDesc('updated_at');
+        $user = $request->user();
+        if ($user && $user->hasRole('mod')) {
+            $query->whereIn('sport_id', $user->sports()->pluck('sports.id'));
+        }
+        $board = $query->first();
 
         if (!$board) {
             return response()->json(['ok' => false, 'message' => 'No scoreboard'], 404);

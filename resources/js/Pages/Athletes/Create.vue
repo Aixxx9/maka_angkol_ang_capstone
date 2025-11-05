@@ -6,7 +6,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 // ✅ Props from controller
 const props = defineProps({
   sports: { type: Array, default: () => [] },
-  schools: { type: Array, default: () => [] },
+  schoolOptions: { type: Array, default: () => [] },
 })
 
 // ✅ form state
@@ -139,7 +139,7 @@ function savePlayer() {
             class="w-full rounded-lg border border-neutral-300 px-3 py-2 shadow-sm bg-white focus:border-[#0b66ff] focus:ring-2 focus:ring-[#0b66ff]/30"
           >
             <option value="" disabled>Select a school…</option>
-            <option v-for="sch in props.schools" :key="sch.id" :value="sch.id">{{ sch.name }}</option>
+            <option v-for="sch in props.schoolOptions" :key="sch.id" :value="sch.id">{{ sch.name }}</option>
           </select>
         </div>
 

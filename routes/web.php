@@ -16,6 +16,8 @@ use App\Http\Controllers\{
     AthleteController,
     HomeController
 };
+use App\Http\Controllers\Admin\AccountController;
+use App\Http\Controllers\Admin\AthleteApprovalController;
 use Inertia\Inertia;
 
 /*
@@ -128,13 +130,10 @@ Route::middleware(['auth', EnsureRole::class . ':admin,super-admin'])->group(fun
     Route::delete('/sports/{sport}', [SportController::class, 'destroy'])->name('sports.destroy');
 
     // Games (manage)
-    Route::get('/games/create', [GameController::class, 'create'])->name('games.create');
-    Route::post('/games', [GameController::class, 'store'])->name('games.store');
     Route::get('/games/{game}/edit', [GameController::class, 'edit'])->name('games.edit');
     Route::put('/games/{game}', [GameController::class, 'update'])->name('games.update');
     Route::delete('/games/{game}', [GameController::class, 'destroy'])->name('games.destroy');
     Route::put('/games/{game}/finalize', [GameController::class, 'finalize'])->name('games.finalize');
-    Route::post('/games/{game}/events', [GameController::class, 'addEvent'])->name('games.events.add');
 
     // Brackets (manage)
     Route::get('/brackets/create', [BracketController::class, 'create'])->name('brackets.create');
@@ -152,22 +151,57 @@ Route::middleware(['auth', EnsureRole::class . ':admin,super-admin'])->group(fun
     Route::delete('/news/{news}', [NewsController::class, 'destroy'])->name('news.destroy');
 
     // Athletes (manage)
-    Route::get('/athletes/create', [AthleteController::class, 'create'])->name('athletes.create');
-    Route::post('/athletes', [AthleteController::class, 'store'])->name('athletes.store');
-    Route::post('/athletes/{athlete}/game-stats', [AthleteController::class, 'storeGameStat'])->name('athletes.stats.store');
-    Route::delete('/athletes/{athlete}/game-stats/{stat}', [AthleteController::class, 'destroyGameStat'])->name('athletes.stats.destroy');
 
     // Live (manage)
     Route::get('/live/create', [LiveController::class, 'create'])->name('live.create');
     Route::post('/live', [LiveController::class, 'store'])->name('live.store');
     Route::put('/live/{game}/stop', [LiveController::class, 'stop'])->name('live.stop');
 
+    // Admin: Accounts (mods management)
+    Route::prefix('admin/accounts')->name('admin.accounts.')->group(function () {
+        Route::get('/', [AccountController::class, 'index'])->name('index');
+        Route::get('/create', [AccountController::class, 'create'])->name('create');
+        Route::post('/', [AccountController::class, 'store'])->name('store');
+        Route::get('/{user}/edit', [AccountController::class, 'edit'])->name('edit');
+        Route::put('/{user}', [AccountController::class, 'update'])->name('update');
+        Route::post('/{user}/logout', [AccountController::class, 'logout'])->name('logout');
+        Route::delete('/{user}', [AccountController::class, 'destroy'])->name('destroy');
+    });
+
+    // Admin: Athlete approvals
+    Route::get('/admin/athletes/pending', [AthleteApprovalController::class, 'pending'])->name('admin.athletes.pending');
+    Route::post('/admin/athletes/{athlete}/approve', [AthleteApprovalController::class, 'approve'])->name('admin.athletes.approve');
+    Route::post('/admin/athletes/{athlete}/reject', [AthleteApprovalController::class, 'reject'])->name('admin.athletes.reject');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Staff routes (auth + role: admin, super-admin, mod)
+| Mods are limited by assigned sports in controllers
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth', EnsureRole::class . ':admin,super-admin,mod'])->group(function () {
     // Live Scoring (manual scoreboard)
     Route::get('/live-scoring', [LiveScoreController::class, 'index'])->name('live-scoring.index');
     Route::post('/live-scoring/start', [LiveScoreController::class, 'start'])->name('live-scoring.start');
     Route::post('/live-scoring/score', [LiveScoreController::class, 'score'])->name('live-scoring.score');
     Route::post('/live-scoring/reset', [LiveScoreController::class, 'reset'])->name('live-scoring.reset');
     Route::post('/live-scoring/hide', [LiveScoreController::class, 'hide'])->name('live-scoring.hide');
+
+    // Game live events (score bumps)
+    Route::post('/games/{game}/events', [GameController::class, 'addEvent'])->name('games.events.add');
+
+    // Player game stats
+    Route::post('/athletes/{athlete}/game-stats', [AthleteController::class, 'storeGameStat'])->name('athletes.stats.store');
+    Route::delete('/athletes/{athlete}/game-stats/{stat}', [AthleteController::class, 'destroyGameStat'])->name('athletes.stats.destroy');
+
+    // Mods: submit new athletes (pending approval) using same create/store endpoints
+    Route::get('/athletes/create', [AthleteController::class, 'create'])->name('athletes.create');
+    Route::post('/athletes', [AthleteController::class, 'store'])->name('athletes.store');
+
+    // Mods: create schedules (scoped by sport)
+    Route::get('/games/create', [GameController::class, 'create'])->name('games.create');
+    Route::post('/games', [GameController::class, 'store'])->name('games.store');
 });
 
 require __DIR__.'/auth.php';
